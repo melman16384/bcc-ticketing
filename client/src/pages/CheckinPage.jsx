@@ -46,15 +46,19 @@ const CATS = [
   { key: 'beach_fun_b',    nameKey: 'names_beach_fun_b',     label: 'Beach-Fun B'                },
 ];
 
-function extractCode(raw) {
+function extractScan(raw) {
   const s = raw.trim();
   try {
     const url = new URL(s);
-    const param = url.searchParams.get('code');
-    if (param) return param.toUpperCase();
+    const code = url.searchParams.get('code');
+    if (code) return { code: code.toUpperCase(), cup: url.searchParams.get('cup') || 'mahrenholz' };
   } catch { /* not a URL */ }
-  if (/^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(s)) return s.toUpperCase();
+  if (/^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(s)) return { code: s.toUpperCase(), cup: 'mahrenholz' };
   return null;
+}
+
+function apiPrefix(cup) {
+  return cup === 'hesse' ? '/api/hesse' : '/api';
 }
 
 // ── QR Scanner ────────────────────────────────────────────────────────────────
@@ -96,8 +100,8 @@ function QrScanner({ onCode, active }) {
         const img    = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const result = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
         if (result?.data) {
-          const code = extractCode(result.data);
-          if (code) { onCode(code); return; }
+          const scan = extractScan(result.data);
+          if (scan) { onCode(scan.code, scan.cup); return; }
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -111,7 +115,7 @@ function QrScanner({ onCode, active }) {
   }, [active, onCode]);
 
   return (
-    <div className="relative w-full bg-black overflow-hidden" style={{ height: '70vmax', maxHeight: '80vh' }}>
+    <div className="relative w-full bg-black overflow-hidden" style={{ height: '62vmax', maxHeight: '72vh' }}>
       <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
       <canvas ref={canvasRef} className="hidden" />
 
@@ -224,12 +228,13 @@ function PinDialog({ onSubmit, onCancel, error, checking }) {
 }
 
 // ── Buchungs-Ergebnis (Bottom Sheet) ─────────────────────────────────────────
-function ResultSheet({ reg, onCheckinRequest, onReset, success }) {
+function ResultSheet({ reg, onCheckinRequest, onReset, success, cup }) {
   const alreadyCheckedIn = !!reg.checked_in_at;
   const paymentOk        = !!reg.payment_received_at;
   const isConfirmed      = reg.status === 'confirmed';
   const canCheckin       = isConfirmed && paymentOk && !alreadyCheckedIn;
-  const teams            = CATS.filter((c) => reg[c.key] > 0);
+  const isHesse          = cup === 'hesse';
+  const teams            = isHesse ? null : CATS.filter((c) => reg[c.key] > 0);
 
   let statusColor, statusIcon, statusText, statusSub;
   if (success || alreadyCheckedIn) {
@@ -277,17 +282,21 @@ function ResultSheet({ reg, onCheckinRequest, onReset, success }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-bold text-xl text-shore-800">{reg.vorname} {reg.nachname}</p>
-              {reg.vereinsname && <p className="text-shore-500 text-sm">{reg.vereinsname}</p>}
+              {isHesse && reg.firma && <p className="text-shore-600 text-sm font-semibold">{reg.firma}</p>}
+              {!isHesse && reg.vereinsname && <p className="text-shore-500 text-sm">{reg.vereinsname}</p>}
               <p className="text-shore-400 text-xs mt-0.5">{reg.email}</p>
+              <span className={`inline-block mt-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${isHesse ? 'bg-red-100 text-red-700' : 'bg-ocean-50 text-ocean-700'}`}>
+                {isHesse ? '🏢 Heße Cup' : '🌊 Mahrenholz Cup'}
+              </span>
             </div>
-            <span className="font-mono text-xs font-bold text-ocean-600 bg-ocean-50 border border-ocean-200 rounded-xl px-3 py-1.5 tracking-widest shrink-0">
+            <span className={`font-mono text-xs font-bold rounded-xl px-3 py-1.5 tracking-widest shrink-0 border ${isHesse ? 'text-red-700 bg-red-50 border-red-200' : 'text-ocean-600 bg-ocean-50 border-ocean-200'}`}>
               {reg.booking_code}
             </span>
           </div>
         </div>
 
-        {/* Teams */}
-        {teams.length > 0 && (
+        {/* Teams — Mahrenholz */}
+        {!isHesse && teams && teams.length > 0 && (
           <div className="px-5 py-4 border-b border-shore-100 space-y-2">
             <p className="text-xs font-bold text-shore-400 uppercase tracking-widest">🏐 Teams</p>
             {teams.map((c) => {
@@ -299,6 +308,19 @@ function ResultSheet({ reg, onCheckinRequest, onReset, success }) {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Teams — Heße Cup */}
+        {isHesse && (
+          <div className="px-5 py-4 border-b border-shore-100 space-y-2">
+            <p className="text-xs font-bold text-shore-400 uppercase tracking-widest">🏐 Mannschaften</p>
+            <div className="bg-red-50 rounded-xl p-3">
+              <p className="text-xs font-bold text-red-600 mb-1">4er-Mixed ({reg.mannschaften}× Teams · {reg.teilnehmer_anzahl} Teilnehmer)</p>
+              {(reg.mannschaftsnamen || '').split('\n').filter(Boolean).map((n, i) =>
+                <p key={i} className="text-sm text-shore-700">{i + 1}. {n}</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -326,6 +348,7 @@ export default function CheckinPage() {
   const [mode, setMode]           = useState('scan');
   const [manualInput, setManualInput] = useState('');
   const [reg, setReg]             = useState(null);
+  const [cup, setCup]             = useState('mahrenholz');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [success, setSuccess]     = useState(false);
@@ -334,15 +357,16 @@ export default function CheckinPage() {
   const [checking, setChecking]   = useState(false);
   const lastCode = useRef(null);
 
-  const lookupCode = useCallback(async (code) => {
+  const lookupCode = useCallback(async (code, scanCup = 'mahrenholz') => {
     if (!code || code === lastCode.current) return;
     lastCode.current = code;
     setError(null);
     setSuccess(false);
     setReg(null);
+    setCup(scanCup);
     setLoading(true);
     try {
-      const r = await fetch(`/api/checkin/${encodeURIComponent(code)}`);
+      const r = await fetch(`${apiPrefix(scanCup)}/checkin/${encodeURIComponent(code)}`);
       const j = await r.json();
       r.ok ? setReg(j) : setError(j.error || 'Buchung nicht gefunden');
     } catch { setError('Verbindungsfehler'); }
@@ -351,8 +375,8 @@ export default function CheckinPage() {
 
   const handleManual = (e) => {
     e.preventDefault();
-    const code = extractCode(manualInput.trim());
-    if (code) lookupCode(code);
+    const scan = extractScan(manualInput.trim());
+    if (scan) lookupCode(scan.code, scan.cup);
     else setError('Format ungültig – bitte XXXX-XXXX eingeben');
   };
 
@@ -361,7 +385,7 @@ export default function CheckinPage() {
     setChecking(true);
     setPinError(null);
     try {
-      const r = await fetch(`/api/checkin/${encodeURIComponent(reg.booking_code)}`, {
+      const r = await fetch(`${apiPrefix(cup)}/checkin/${encodeURIComponent(reg.booking_code)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
@@ -372,7 +396,7 @@ export default function CheckinPage() {
       } else {
         setShowPin(false);
         setSuccess(true);
-        navigator.vibrate?.([100, 50, 100]); // Haptisches Feedback
+        navigator.vibrate?.([100, 50, 100]);
         setReg((prev) => ({ ...prev, checked_in_at: new Date().toLocaleString('de-DE') }));
       }
     } catch { setPinError('Verbindungsfehler'); }
@@ -386,12 +410,15 @@ export default function CheckinPage() {
     setManualInput('');
     setShowPin(false);
     setPinError(null);
+    setCup('mahrenholz');
     lastCode.current = null;
   };
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('code');
-    if (code) lookupCode(code.toUpperCase());
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const scanCup = params.get('cup') || 'mahrenholz';
+    if (code) lookupCode(code.toUpperCase(), scanCup);
   }, [lookupCode]);
 
   const showResult = reg || error || loading;
@@ -468,6 +495,7 @@ export default function CheckinPage() {
           {reg && (
             <ResultSheet
               reg={reg}
+              cup={cup}
               success={success}
               onCheckinRequest={() => { setPinError(null); setShowPin(true); }}
               onReset={reset}

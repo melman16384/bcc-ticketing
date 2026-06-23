@@ -587,7 +587,7 @@ async function sendHesseCancellation(reg) {
 
 async function sendHesseQrCode(reg) {
   const subject = `Ihr QR-Code für den Check-in – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
-  const checkinUrl = `https://ticketing.luwilab.work/checkin?code=${reg.booking_code}`;
+  const checkinUrl = `https://ticketing.luwilab.work/checkin?code=${reg.booking_code}&cup=hesse`;
   const qrBuffer = await QRCode.toBuffer(checkinUrl, { width: 300, margin: 2, color: { dark: HESSE_COLOR, light: '#ffffff' } });
   const html = hesseWrap(`
     <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Ihr Check-in QR-Code</h2>
