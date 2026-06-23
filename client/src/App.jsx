@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import TournamentSelectorPage from './pages/TournamentSelectorPage';
 import RegistrationPage from './pages/RegistrationPage';
+import HesseRegistrationPage from './pages/HesseRegistrationPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import CheckinPage from './pages/CheckinPage';
@@ -13,7 +15,9 @@ function RequireAuth({ children }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<RegistrationPage />} />
+      <Route path="/" element={<TournamentSelectorPage />} />
+      <Route path="/mahrenholz" element={<RegistrationPage />} />
+      <Route path="/hesse" element={<HesseRegistrationPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/admin/*" element={<RequireAuth><AdminPage /></RequireAuth>} />
       <Route path="/checkin" element={<CheckinPage />} />

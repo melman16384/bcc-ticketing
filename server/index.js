@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const { seedUsers } = require('./db');
 const routes = require('./routes');
+const hesseRoutes = require('./routes-hesse');
 
 seedUsers();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api', routes);
+app.use('/api/hesse', hesseRoutes);
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));

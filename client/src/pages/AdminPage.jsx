@@ -128,9 +128,19 @@ function Sidebar({ onLogout }) {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        <p className="px-3 pt-1 pb-1 text-xs font-bold text-shore-400 uppercase tracking-widest">Übersicht</p>
+        <p className="px-3 pt-1 pb-1 text-xs font-bold text-shore-400 uppercase tracking-widest">🌊 Mahrenholz Cup</p>
         <NavLink to="/admin" end className={navCls}>📊 Dashboard</NavLink>
         <NavLink to="/admin/registrations" className={navCls}>📋 Anmeldungen</NavLink>
+
+        <p className="px-3 pt-3 pb-1 text-xs font-bold text-red-300 uppercase tracking-widest">🏢 Heße Cup</p>
+        <NavLink to="/admin/hesse" end className={({ isActive }) =>
+          `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${isActive ? 'bg-red-600 text-white shadow-sm' : 'text-shore-600 hover:bg-red-50 hover:text-red-700'}`}>
+          📊 Dashboard
+        </NavLink>
+        <NavLink to="/admin/hesse/registrations" className={({ isActive }) =>
+          `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${isActive ? 'bg-red-600 text-white shadow-sm' : 'text-shore-600 hover:bg-red-50 hover:text-red-700'}`}>
+          📋 Anmeldungen
+        </NavLink>
 
         <p className="px-3 pt-3 pb-1 text-xs font-bold text-shore-400 uppercase tracking-widest">Einstellungen</p>
         <NavLink to="/admin/waitlist" className={navCls}>⏳ Warteliste</NavLink>
@@ -144,7 +154,7 @@ function Sidebar({ onLogout }) {
           🎟️ Check-in Scanner
         </a>
         <a href="/" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-shore-600 hover:bg-shore-100 hover:text-shore-800 transition">
-          🏐 Zur Anmeldung
+          ← Turnierwahl
         </a>
       </nav>
 
@@ -334,13 +344,13 @@ function RegistrationList() {
 }
 
 // Superadmin-only delete — two-step, module-level to avoid focus loss
-function DeleteRegistration({ id, onDeleted }) {
+function DeleteRegistration({ id, onDeleted, apiPrefix = '/api/admin' }) {
   const [step, setStep] = useState(0);
   const [deleting, setDeleting] = useState(false);
 
   const doDelete = async () => {
     setDeleting(true);
-    await authFetch(`/api/admin/registrations/${id}`, { method: 'DELETE' });
+    await authFetch(`${apiPrefix}/registrations/${id}`, { method: 'DELETE' });
     onDeleted();
   };
 
@@ -1023,6 +1033,349 @@ function UserManagement() {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Heße Immobilien Cup — Admin-Komponenten
+// ══════════════════════════════════════════════════════════════════════════════
+
+function HesseDashboard() {
+  const navigate = useNavigate();
+  const { data: stats } = useAdminData('/api/hesse/admin/stats');
+
+  const cards = [
+    { label: 'Gesamt',      value: stats?.total,        icon: '📋', color: 'text-shore-700' },
+    { label: 'Ausstehend',  value: stats?.pending,      icon: '⏳', color: 'text-amber-600',   action: () => navigate('/admin/hesse/registrations?status=pending') },
+    { label: 'Bestätigt',   value: stats?.confirmed,    icon: '✅', color: 'text-emerald-600', action: () => navigate('/admin/hesse/registrations?status=confirmed') },
+    { label: 'Eingecheckt', value: stats?.checked_in,   icon: '🎟️', color: 'text-red-600',     action: () => navigate('/admin/hesse/registrations?checked_in=true') },
+    { label: 'Storniert',   value: stats?.cancelled,    icon: '❌', color: 'text-red-400',     action: () => navigate('/admin/hesse/registrations?status=cancelled') },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-xl font-bold text-shore-800">Heße Immobilien Cup 2026</h1>
+        <span className="badge bg-red-50 text-red-600 border-red-200">🏢 Firmencup</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        {cards.map((c) => (
+          <div key={c.label}
+            className={`stat-card ${c.action ? 'cursor-pointer hover:shadow-md transition hover:border-red-200' : ''}`}
+            onClick={c.action}>
+            <p className="text-xs text-shore-400 mb-1">{c.label}</p>
+            <p className={`text-2xl font-bold ${c.color}`}>{c.value ?? '–'}</p>
+            <p className="text-lg mt-1">{c.icon}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6 max-w-xs">
+        <div className="stat-card">
+          <p className="text-xs text-shore-400 mb-1">Mannschaften</p>
+          <p className="text-2xl font-bold text-shore-700">{stats?.mannschaften ?? '–'}</p>
+          <p className="text-lg mt-1">🏐</p>
+        </div>
+        <div className="stat-card">
+          <p className="text-xs text-shore-400 mb-1">Einnahmen (bestätigt)</p>
+          <p className="text-lg font-bold text-red-700">{stats?.revenue != null ? (stats.revenue.toFixed(2).replace('.', ',') + ' €') : '–'}</p>
+          <p className="text-lg mt-1">💶</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 flex-wrap">
+        <button className="btn-primary" onClick={() => navigate('/admin/hesse/registrations')}>
+          📋 Alle Anmeldungen
+        </button>
+        <button className="btn-secondary" onClick={async () => {
+          const r = await authFetch('/api/hesse/admin/export/csv');
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `hesse-anmeldungen-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+          URL.revokeObjectURL(url);
+        }}>
+          📥 CSV Export
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HesseList() {
+  const navigate = useNavigate();
+  const [search, setSearch]       = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('checked_in') === 'true') return 'checked_in';
+    return p.get('status') || '';
+  });
+
+  const url = `/api/hesse/admin/registrations?${new URLSearchParams({
+    ...(statusFilter === 'checked_in' ? { checked_in: 'true' } : statusFilter ? { status: statusFilter } : {}),
+    ...(search && { search }),
+  })}`;
+  const { data: regs, loading, reload } = useAdminData(url, [search, statusFilter]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4">
+        <h1 className="text-xl font-bold text-shore-800">Heße Cup – Anmeldungen</h1>
+      </div>
+
+      <div className="card mb-3 p-3 flex flex-wrap gap-2">
+        <input type="search" className="form-input w-56" placeholder="🔍 Name, Firma, E-Mail…"
+          value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select className="form-input w-44" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Alle Status</option>
+          {Object.entries(STATUS).filter(([k]) => k !== 'waitlist').map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+          <option value="checked_in">🎟️ Eingecheckt</option>
+        </select>
+        <button className="btn-secondary px-3" onClick={reload} title="Aktualisieren">↻</button>
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-red-50 border-b border-red-100 text-xs font-bold text-red-400 uppercase tracking-wide">
+                <th className="px-4 py-2.5 text-left">#</th>
+                <th className="px-4 py-2.5 text-left">Firma / Ansprechpartner</th>
+                <th className="px-4 py-2.5 text-left">Kontakt</th>
+                <th className="px-4 py-2.5 text-center">Teams</th>
+                <th className="px-4 py-2.5 text-right">Gebühr</th>
+                <th className="px-4 py-2.5 text-left">Status</th>
+                <th className="px-4 py-2.5 text-left">Datum</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-shore-50">
+              {loading && <tr><td colSpan={7} className="px-4 py-8 text-center text-shore-400">Lade…</td></tr>}
+              {!loading && !regs?.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-shore-400">Keine Anmeldungen gefunden</td></tr>}
+              {regs?.map((r) => (
+                <tr key={r.id} className="hover:bg-red-50/50 cursor-pointer transition" onClick={() => navigate(`/admin/hesse/registrations/${r.id}`)}>
+                  <td className="px-4 py-2.5 text-shore-300 font-mono text-xs">{r.id}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="font-semibold text-shore-800">{r.firma}</div>
+                    <div className="text-xs text-shore-400">{r.vorname} {r.nachname}</div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="text-xs text-shore-600">{r.email}</div>
+                    <div className="text-xs text-shore-400">{r.telefon}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <span className="badge bg-red-50 text-red-600 border-red-200">🏐 {r.mannschaften}×</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-shore-700">
+                    {Number(r.gebuehr_gesamt || 0).toFixed(2).replace('.', ',')} €
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge status={r.status} />
+                    {r.checked_in_at && <span className="ml-1 badge bg-emerald-50 text-emerald-700 border-emerald-200">🎟️</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-shore-400 text-xs whitespace-nowrap">{r.created_at?.slice(0, 16)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HesseDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { data: reg, loading, reload } = useAdminData(`/api/hesse/admin/registrations/${id}`);
+  const [msg, setMsg]             = useState(null);
+  const [saving, setSaving]       = useState(false);
+  const [confirmStep, setConfirmStep] = useState(0);
+  const [cancelStep, setCancelStep]   = useState(0);
+  const [paymentStep, setPaymentStep] = useState(0);
+
+  const flash = (text, type = 'ok') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 4000); };
+
+  const doConfirm = async () => {
+    if (confirmStep === 0) { setConfirmStep(1); return; }
+    setSaving(true); setConfirmStep(0);
+    const r = await authFetch(`/api/hesse/admin/registrations/${id}/confirm`, { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+    const j = await r.json();
+    r.ok ? flash('✅ Bestätigt! Zahlungsinfo wurde gesendet.') : flash(j.error || 'Fehler', 'err');
+    reload(); setSaving(false);
+  };
+
+  const doCancel = async () => {
+    if (cancelStep === 0) { setCancelStep(1); return; }
+    setSaving(true); setCancelStep(0);
+    const r = await authFetch(`/api/hesse/admin/registrations/${id}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+    const j = await r.json();
+    r.ok ? flash('Storniert. Stornierungsmail wurde gesendet.') : flash(j.error || 'Fehler', 'err');
+    reload(); setSaving(false);
+  };
+
+  const doPayment = async () => {
+    if (paymentStep === 0) { setPaymentStep(1); return; }
+    setSaving(true); setPaymentStep(0);
+    const r = await authFetch(`/api/hesse/admin/registrations/${id}/payment`, { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+    const j = await r.json();
+    r.ok ? flash('💰 Zahlungseingang bestätigt! QR-Code-Mail wurde gesendet.') : flash(j.error || 'Fehler', 'err');
+    reload(); setSaving(false);
+  };
+
+  const user = getUser();
+
+  if (loading) return <div className="text-center py-12 text-shore-400">Lade…</div>;
+  if (!reg || reg.error) return <div className="text-red-500 py-12 text-center">Nicht gefunden</div>;
+
+  const teams = (reg.mannschaftsnamen || '').split('\n').filter(Boolean);
+
+  return (
+    <div>
+      <button className="btn-secondary mb-4 text-sm" onClick={() => navigate('/admin/hesse/registrations')}>← Zurück</button>
+
+      {msg && (
+        <div className={`mb-4 p-3 rounded-xl text-sm font-medium border ${msg.type === 'err' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 items-center mb-5">
+        <h1 className="text-xl font-bold text-shore-800">Heße Cup – Anmeldung #{reg.id}</h1>
+        <Badge status={reg.status} />
+        {reg.booking_code && (
+          <span className="ml-auto font-mono text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-1 tracking-widest select-all">
+            {reg.booking_code}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {/* Aktionen */}
+        <div className="space-y-3">
+          {reg.status === 'confirmed' ? (
+            <>
+              <div className="card border-emerald-200 bg-emerald-50">
+                <p className="font-bold text-emerald-800 text-sm mb-1">✅ Bestätigt & gesperrt</p>
+                <p className="text-emerald-600 text-xs mt-1 font-medium">{reg.confirmed_at?.slice(0, 16)}</p>
+              </div>
+              {reg.payment_received_at ? (
+                <div className="card border-red-200 bg-red-50">
+                  <p className="font-bold text-red-800 text-sm mb-1">💰 Zahlung eingegangen</p>
+                  <p className="text-red-600 text-xs font-medium">{reg.payment_received_at?.slice(0, 16)}</p>
+                </div>
+              ) : (
+                <div className={`card ${paymentStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-red-200 bg-red-50'}`}>
+                  {paymentStep === 0 ? (
+                    <>
+                      <p className="font-bold text-red-800 mb-1 text-sm">💰 Zahlung bestätigen</p>
+                      <p className="text-red-600 text-xs mb-3 leading-relaxed">Markiert den Zahlungseingang und sendet den QR-Code per E-Mail.</p>
+                      <button className="w-full py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition" onClick={doPayment} disabled={saving}>
+                        Zahlung eingegangen bestätigen
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Zahlung wirklich bestätigen?</p>
+                      <p className="text-orange-700 text-xs mb-3">QR-Code wird sofort per E-Mail gesendet.</p>
+                      <div className="flex gap-2">
+                        <button className="flex-1 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700" onClick={doPayment} disabled={saving}>Ja, bestätigen</button>
+                        <button className="btn-secondary text-sm" onClick={() => setPaymentStep(0)}>Abbrechen</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {reg.checked_in_at && (
+                <div className="card border-emerald-300 bg-emerald-50">
+                  <p className="font-bold text-emerald-800 text-sm mb-1">🎟️ Eingecheckt</p>
+                  <p className="text-emerald-600 text-xs font-medium">{reg.checked_in_at?.slice(0, 16)}</p>
+                </div>
+              )}
+            </>
+          ) : reg.status !== 'cancelled' && (
+            <div className={`card ${confirmStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-emerald-200 bg-emerald-50'}`}>
+              {confirmStep === 0 ? (
+                <>
+                  <p className="font-bold text-emerald-800 mb-1 text-sm">Anmeldung bestätigen</p>
+                  <p className="text-emerald-600 text-xs mb-3 leading-relaxed">Bestätigt die Anmeldung und sendet die Zahlungsinformationen per E-Mail.</p>
+                  <button className="btn-primary w-full justify-center text-sm" onClick={doConfirm} disabled={saving}>Anmeldung bestätigen</button>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Wirklich bestätigen?</p>
+                  <p className="text-orange-700 text-xs mb-3">Danach kann der Status nicht mehr geändert werden.</p>
+                  <div className="flex gap-2">
+                    <button className="btn-primary flex-1 justify-center text-sm" onClick={doConfirm} disabled={saving}>Ja, bestätigen</button>
+                    <button className="btn-secondary text-sm" onClick={() => setConfirmStep(0)}>Abbrechen</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {reg.status !== 'confirmed' && reg.status !== 'cancelled' && (
+            <div className={`card ${cancelStep === 1 ? 'border-red-300 bg-red-50' : ''}`}>
+              {cancelStep === 0 ? (
+                <button className="btn-secondary w-full justify-center text-sm text-red-600 border-red-200 hover:bg-red-50" onClick={doCancel}>Anmeldung stornieren</button>
+              ) : (
+                <>
+                  <p className="font-bold text-red-700 text-sm mb-2">⚠️ Wirklich stornieren?</p>
+                  <p className="text-red-600 text-xs mb-3">Stornierungsmail wird gesendet. Nicht rückgängig zu machen.</p>
+                  <div className="flex gap-2">
+                    <button className="flex-1 py-2 rounded-lg text-sm font-bold text-white bg-red-600" onClick={doCancel} disabled={saving}>Ja, stornieren</button>
+                    <button className="btn-secondary text-sm" onClick={() => setCancelStep(0)}>Abbrechen</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {reg.status === 'cancelled' && (
+            <div className="card border-red-200 bg-red-50">
+              <p className="font-bold text-red-700 text-sm">❌ Storniert & gesperrt</p>
+            </div>
+          )}
+
+          {user.role === 'superadmin' && (
+            <DeleteRegistration id={id} apiPrefix="/api/hesse" onDeleted={() => navigate('/admin/hesse/registrations')} />
+          )}
+        </div>
+
+        {/* Details */}
+        <div className="xl:col-span-2 space-y-3">
+          <DetailSection title="🏢 Firmenangaben">
+            <DetailField label="Firma" value={reg.firma} />
+            <DetailField label="Kunden-Nr." value={reg.kunden_nr} />
+          </DetailSection>
+          <DetailSection title="👤 Ansprechpartner">
+            <DetailField label="Vorname" value={reg.vorname} />
+            <DetailField label="Nachname" value={reg.nachname} />
+            <DetailField label="E-Mail" value={reg.email} />
+            <DetailField label="Telefon" value={reg.telefon} />
+          </DetailSection>
+          <DetailSection title="📍 Adresse">
+            <DetailField label="Straße" value={reg.strasse} />
+            <DetailField label="PLZ" value={reg.plz} />
+            <DetailField label="Ort" value={reg.ort} />
+          </DetailSection>
+          <DetailSection title="🏐 Mannschaften">
+            <DetailField label="Anzahl Teams" value={reg.mannschaften ? `${reg.mannschaften}× 4er-Mixed` : null} />
+            <DetailField label="Teamnamen" value={reg.mannschaftsnamen} />
+            <DetailField label="Teilnehmer" value={reg.teilnehmer_anzahl} />
+            <DetailField label="Gebühr gesamt" value={reg.gebuehr_gesamt ? Number(reg.gebuehr_gesamt).toFixed(2).replace('.', ',') + ' €' : null} />
+          </DetailSection>
+          <DetailSection title="✅ Abschluss">
+            <DetailField label="Unterschrift / Datum" value={reg.ort_datum_name} />
+            <DetailField label="Datenschutz" value={reg.datenschutz_consent ? 'Zugestimmt' : null} />
+          </DetailSection>
+          <DetailSection title="🎟️ Check-in Status">
+            <DetailField label="Zahlung bestätigt" value={reg.payment_received_at?.slice(0, 16) || null} />
+            <DetailField label="Eingecheckt" value={reg.checked_in_at?.slice(0, 16) || null} />
+          </DetailSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -1037,6 +1390,9 @@ export default function AdminPage() {
           <Route index element={<Dashboard />} />
           <Route path="registrations" element={<RegistrationList />} />
           <Route path="registrations/:id" element={<RegistrationDetail />} />
+          <Route path="hesse" element={<HesseDashboard />} />
+          <Route path="hesse/registrations" element={<HesseList />} />
+          <Route path="hesse/registrations/:id" element={<HesseDetail />} />
           <Route path="waitlist" element={<WaitlistSettings />} />
           {user.role === 'superadmin' && <Route path="smtp" element={<SmtpSettings />} />}
           {user.role === 'superadmin' && <Route path="users" element={<UserManagement />} />}

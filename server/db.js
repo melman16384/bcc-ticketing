@@ -75,6 +75,36 @@ db.exec(`
     booking_code TEXT UNIQUE
   );
 
+  CREATE TABLE IF NOT EXISTS hesse_registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    confirmed_at TEXT,
+    status TEXT DEFAULT 'pending',
+
+    firma TEXT NOT NULL,
+    kunden_nr TEXT,
+    vorname TEXT NOT NULL,
+    nachname TEXT NOT NULL,
+    strasse TEXT NOT NULL,
+    ort TEXT NOT NULL,
+    plz TEXT NOT NULL,
+    telefon TEXT,
+    email TEXT NOT NULL,
+
+    mannschaften INTEGER DEFAULT 0,
+    mannschaftsnamen TEXT,
+    teilnehmer_anzahl INTEGER DEFAULT 0,
+
+    ort_datum_name TEXT,
+    datenschutz_consent INTEGER DEFAULT 0,
+
+    gebuehr_gesamt REAL DEFAULT 0,
+
+    booking_code TEXT UNIQUE,
+    payment_received_at TEXT,
+    checked_in_at TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -112,6 +142,7 @@ db.exec(`
 ].forEach((sql) => { try { db.exec(sql); } catch { /* already exists */ } });
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_booking_code ON registrations(booking_code)`); } catch { /* ok */ }
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_token ON registrations(checkin_token)`); } catch { /* ok */ }
+try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_hesse_booking_code ON hesse_registrations(booking_code)`); } catch { /* ok */ }
 
 function getSettings() {
   return Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((r) => [r.key, r.value]));

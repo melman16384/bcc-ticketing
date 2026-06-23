@@ -414,4 +414,193 @@ async function sendQrCodeEmail(reg) {
   console.log(`[Mailer] ✓ QR-Code-Mail → ${reg.email}`);
 }
 
-module.exports = { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo, sendCancellationEmail, sendQrCodeEmail };
+module.exports = { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo, sendCancellationEmail, sendQrCodeEmail,
+  sendHesseConfirmation, sendHesseAdminNotification, sendHessePaymentInfo, sendHesseCancellation, sendHesseQrCode };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Heße Immobilien Cup E-Mails
+// ══════════════════════════════════════════════════════════════════════════════
+
+const HESSE_COLOR = '#c0392b'; // Rot als Akzentfarbe für Heße Cup
+
+function hesseWrap(content) {
+  return `<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:${COLORS.bg};font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${COLORS.text}">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLORS.bg};padding:32px 16px">
+  <tr><td align="center">
+    <table width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%">
+      <tr><td style="background:${COLORS.card};border-radius:16px;border:1px solid ${COLORS.border};overflow:hidden">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="background:linear-gradient(135deg,#2c2c2c 0%,${HESSE_COLOR} 100%);padding:24px 32px;border-radius:16px 16px 0 0">
+              <table cellpadding="0" cellspacing="0" border="0"><tr>
+                <td><img src="https://cux-beach.de/wp-content/uploads/2023/10/BC-Banner-no-bg-600-200-1.png" alt="Beachsportclub Cuxhaven" height="44" style="display:block;filter:brightness(0) invert(1)"></td>
+                <td style="padding-left:16px;color:#fff;font-size:13px;font-weight:bold;white-space:nowrap">Heße Immobilien Cup</td>
+              </tr></table>
+            </td>
+          </tr>
+          <tr><td style="padding:32px">${content}</td></tr>
+          <tr>
+            <td style="background:${COLORS.light};border-top:1px solid ${COLORS.border};padding:16px 32px;border-radius:0 0 16px 16px">
+              <p style="margin:0;font-size:12px;color:${COLORS.muted};line-height:1.6">
+                Beachsportclub Cuxhaven e.V. &nbsp;·&nbsp;
+                <a href="https://cux-beach.de" style="color:${HESSE_COLOR};text-decoration:none">cux-beach.de</a>
+                &nbsp;·&nbsp; <a href="https://whatsapp.com/channel/0029VahAnnyFy72Hr1IMDU3V" style="color:${HESSE_COLOR};text-decoration:none">WhatsApp-Kanal</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
+function hesseKv(rows) {
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0">
+    ${rows.map(([k, v], i) => `
+    <tr style="background:${i % 2 === 0 ? COLORS.light : COLORS.card}">
+      <td style="padding:8px 12px;color:${COLORS.label};font-size:13px;width:42%;vertical-align:top">${k}</td>
+      <td style="padding:8px 12px;color:${COLORS.text};font-size:13px;font-weight:600;vertical-align:top">${v || '–'}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+function hesseBookingBadge(code) {
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
+    <tr><td align="center" style="background:#fff0f0;border:2px dashed ${HESSE_COLOR};border-radius:12px;padding:16px">
+      <p style="margin:0 0 4px;font-size:11px;color:${COLORS.muted};text-transform:uppercase;letter-spacing:2px">Buchungscode</p>
+      <p style="margin:0;font-size:28px;font-weight:bold;letter-spacing:6px;color:${HESSE_COLOR};font-family:monospace">${code}</p>
+      <p style="margin:6px 0 0;font-size:11px;color:${COLORS.muted}">Verwendungszweck bei der Zahlung</p>
+    </td></tr>
+  </table>`;
+}
+
+function hesseTeamsBlock(reg) {
+  const names = (reg.mannschaftsnamen || '').split('\n').filter(Boolean);
+  if (!names.length) return '';
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0">
+    ${names.map((n, i) => `
+    <tr style="background:${i % 2 === 0 ? COLORS.light : COLORS.card}">
+      <td style="padding:8px 12px;color:${COLORS.muted};font-size:13px;width:40px">${i + 1}.</td>
+      <td style="padding:8px 12px;color:${COLORS.text};font-size:13px;font-weight:600">${n}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+async function sendHesseConfirmation(reg) {
+  const subject = `Anmeldebestätigung – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Anmeldung eingegangen</h2>
+    <p style="margin:0 0 20px;color:${COLORS.muted}">Vielen Dank für Ihre Anmeldung, ${reg.vorname} ${reg.nachname}. Wir melden uns nach Prüfung Ihrer Daten mit den Zahlungsinformationen.</p>
+    ${hesseBookingBadge(reg.booking_code)}
+    <p style="font-size:13px;font-weight:700;color:${COLORS.label};text-transform:uppercase;letter-spacing:1px;margin:20px 0 6px">Ihre Daten</p>
+    ${hesseKv([
+      ['Firma', reg.firma],
+      ['Kunden-Nr.', reg.kunden_nr],
+      ['Ansprechpartner', `${reg.vorname} ${reg.nachname}`],
+      ['Adresse', `${reg.strasse}, ${reg.plz} ${reg.ort}`],
+      ['E-Mail', reg.email],
+      ['Telefon', reg.telefon],
+    ])}
+    <p style="font-size:13px;font-weight:700;color:${COLORS.label};text-transform:uppercase;letter-spacing:1px;margin:20px 0 6px">🏐 Mannschaften (${reg.mannschaften}× 4er-Mixed)</p>
+    ${hesseTeamsBlock(reg)}
+    ${hesseKv([
+      ['Teilnehmer gesamt', reg.teilnehmer_anzahl],
+      ['Startgebühr gesamt', `${String(reg.gebuehr_gesamt).replace('.', ',')} €`],
+    ])}
+    <p style="margin:24px 0 0;font-size:14px">Mit sportlichen Grüßen<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Heße Immobilien Cup 2026</span></p>
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — Bestätigung → ${reg.email}`); return; }
+  await t.sendMail({ from: getFrom(), to: reg.email, subject, html });
+  console.log(`[Mailer/Hesse] ✓ Bestätigung → ${reg.email}`);
+}
+
+async function sendHesseAdminNotification(reg) {
+  const adminEmail = getAdminEmail();
+  if (!adminEmail) return;
+  const subject = `Neue Anmeldung Heße Cup #${reg.id} – ${reg.nachname}, ${reg.vorname} / ${reg.firma}`;
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 20px;color:${HESSE_COLOR}">Neue Anmeldung Heße Immobilien Cup</h2>
+    ${hesseKv([
+      ['ID', `#${reg.id}`],
+      ['Buchungscode', reg.booking_code],
+      ['Firma', reg.firma],
+      ['Kunden-Nr.', reg.kunden_nr],
+      ['Name', `${reg.vorname} ${reg.nachname}`],
+      ['E-Mail', reg.email],
+      ['Telefon', reg.telefon],
+      ['Mannschaften', `${reg.mannschaften}× 4er-Mixed`],
+      ['Teilnehmer', reg.teilnehmer_anzahl],
+      ['Gebühr', `${String(reg.gebuehr_gesamt).replace('.', ',')} €`],
+    ])}
+    <p style="font-size:13px;font-weight:700;color:${COLORS.label};margin:16px 0 6px">Mannschaftsnamen</p>
+    ${hesseTeamsBlock(reg)}
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — Admin-Mail`); return; }
+  await t.sendMail({ from: getFrom(), to: adminEmail, subject, html });
+  console.log(`[Mailer/Hesse] ✓ Admin-Benachrichtigung → ${adminEmail}`);
+}
+
+async function sendHessePaymentInfo(reg) {
+  const p = getPayment();
+  const subject = `Zahlungsinformationen – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Zahlungsinformationen</h2>
+    <p style="margin:0 0 20px;color:${COLORS.muted}">Ihre Anmeldung wurde bestätigt. Bitte überweisen Sie die Startgebühr bis zur genannten Frist.</p>
+    ${hesseBookingBadge(reg.booking_code)}
+    ${hesseKv([
+      ['Empfänger', p.empfaenger],
+      ['IBAN', p.iban],
+      ['BIC', p.bic],
+      ['Bank', p.bank],
+      ['Betrag', `${String(reg.gebuehr_gesamt).replace('.', ',')} €`],
+      ['Verwendungszweck', reg.booking_code],
+      ['Zahlungsfrist', p.frist],
+    ])}
+    ${p.storno_hinweis ? `<p style="margin:16px 0 0;font-size:13px;color:${COLORS.muted}">${p.storno_hinweis}</p>` : ''}
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — Zahlungsinfo → ${reg.email}`); return; }
+  await t.sendMail({ from: getFrom(), to: reg.email, subject, html });
+  console.log(`[Mailer/Hesse] ✓ Zahlungsinfo → ${reg.email}`);
+}
+
+async function sendHesseCancellation(reg) {
+  const subject = `Stornierungsbestätigung – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Anmeldung storniert</h2>
+    <p style="margin:0 0 20px;color:${COLORS.muted}">Ihre Anmeldung für den Heße Immobilien Cup 2026 wurde storniert.</p>
+    ${hesseKv([['Buchungscode', reg.booking_code], ['Firma', reg.firma], ['Name', `${reg.vorname} ${reg.nachname}`]])}
+    <p style="margin:16px 0 0;font-size:13px">Bei Fragen wenden Sie sich bitte an die Turnierleitung.</p>
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — Storno → ${reg.email}`); return; }
+  await t.sendMail({ from: getFrom(), to: reg.email, subject, html });
+  console.log(`[Mailer/Hesse] ✓ Storno → ${reg.email}`);
+}
+
+async function sendHesseQrCode(reg) {
+  const subject = `Ihr QR-Code für den Check-in – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
+  const checkinUrl = `https://ticketing.luwilab.work/checkin?code=${reg.booking_code}`;
+  const qrBuffer = await QRCode.toBuffer(checkinUrl, { width: 300, margin: 2, color: { dark: HESSE_COLOR, light: '#ffffff' } });
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Ihr Check-in QR-Code</h2>
+    <p style="margin:0 0 20px;color:${COLORS.muted}">Zahlung eingegangen – vielen Dank! Zeigen Sie diesen QR-Code beim Check-in vor Ort.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+      <tr><td align="center"><img src="cid:qrcode" width="220" alt="QR-Code" style="display:block"></td></tr>
+    </table>
+    ${hesseBookingBadge(reg.booking_code)}
+    ${hesseKv([['Firma', reg.firma], ['Name', `${reg.vorname} ${reg.nachname}`], ['Mannschaften', `${reg.mannschaften}× 4er-Mixed`]])}
+    <p style="margin:24px 0 0;font-size:14px">Wir freuen uns auf Sie!<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Heße Immobilien Cup 2026</span></p>
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — QR-Mail → ${reg.email}`); return; }
+  await t.sendMail({ from: getFrom(), to: reg.email, subject, html, attachments: [{ filename: 'checkin-qrcode.png', content: qrBuffer, cid: 'qrcode' }] });
+  console.log(`[Mailer/Hesse] ✓ QR-Mail → ${reg.email}`);
+}
