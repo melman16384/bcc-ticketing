@@ -15,12 +15,12 @@ function buildTransporter() {
 
 function getFrom() {
   const s = getSettings();
-  return s.smtp_from || process.env.SMTP_FROM || 'Beachsportclub Cuxhaven e.V. <info@cux-beach.de>';
+  return s.smtp_from || process.env.SMTP_FROM || '';
 }
 
 function getAdminEmail() {
   const s = getSettings();
-  return s.admin_email || process.env.ADMIN_EMAIL || 'ruediger.sauer@cux-beach.de';
+  return s.admin_email || process.env.ADMIN_EMAIL || '';
 }
 
 function getPayment() {

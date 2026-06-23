@@ -90,16 +90,16 @@ Alle Einstellungen können alternativ als Umgebungsvariablen gesetzt werden (wer
 
 | Variable              | Bedeutung                        | Standard                              |
 |-----------------------|----------------------------------|---------------------------------------|
-| `SEED_SUPERADMIN_EMAIL` | E-Mail des Superadmins          | `superadmin@bcc-ticketing.de`         |
-| `SEED_SUPERADMIN_PASSWORD` | Passwort des Superadmins   | `SuperAdmin2026!`                     |
-| `SEED_ADMIN_EMAIL`    | E-Mail des Admins                | `admin@bcc-ticketing.de`              |
-| `SEED_ADMIN_PASSWORD` | Passwort des Admins              | `Admin2026!`                          |
-| `SMTP_HOST`           | SMTP-Server                      | –                                     |
-| `SMTP_PORT`           | SMTP-Port                        | `587`                                 |
-| `SMTP_USER`           | SMTP-Benutzername                | –                                     |
-| `SMTP_PASS`           | SMTP-Passwort                    | –                                     |
-| `SMTP_FROM`           | Absender-Adresse                 | `Beachsportclub Cuxhaven e.V. <...>`  |
-| `ADMIN_EMAIL`         | Empfänger der Admin-Benachrichtigungen | `ruediger.sauer@cux-beach.de`  |
+| `SEED_SUPERADMIN_EMAIL`    | E-Mail des Superadmins                 | –  |
+| `SEED_SUPERADMIN_PASSWORD` | Passwort des Superadmins               | –  |
+| `SEED_ADMIN_EMAIL`         | E-Mail des Admins                      | –  |
+| `SEED_ADMIN_PASSWORD`      | Passwort des Admins                    | –  |
+| `SMTP_HOST`                | SMTP-Server                            | –  |
+| `SMTP_PORT`                | SMTP-Port                              | `587` |
+| `SMTP_USER`                | SMTP-Benutzername                      | –  |
+| `SMTP_PASS`                | SMTP-Passwort                          | –  |
+| `SMTP_FROM`                | Absender-Adresse                       | –  |
+| `ADMIN_EMAIL`              | Empfänger der Admin-Benachrichtigungen | –  |
 
 > Die meisten Einstellungen können auch direkt im Admin-Panel unter **Einstellungen → SMTP** und **Zahlungsinformationen** gepflegt werden und werden in der Datenbank gespeichert.
 
@@ -138,7 +138,7 @@ Die Check-in-Seite ist unter `/checkin` öffentlich erreichbar (kein Login erfor
 3. Klick auf „Einchecken →" öffnet PIN-Eingabe
 4. PIN eingeben → Eincheck-Vorgang abgeschlossen
 
-**PIN:** Wird in den Admin-Einstellungen unter dem Key `checkin_pin` in der Datenbank gespeichert. Standard: `2005`.
+**PIN:** Wird in der Datenbank unter dem Key `checkin_pin` gespeichert und muss nach der Installation über die DB direkt oder ein Admin-Interface gesetzt werden.
 
 Sicherheitshinweise:
 - Der QR-Code kodiert die URL `https://[domain]/checkin?code=XXXX-XXXX`

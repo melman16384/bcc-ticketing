@@ -91,15 +91,15 @@ db.exec(`
     ('smtp_secure', 'false'),
     ('smtp_user', ''),
     ('smtp_pass', ''),
-    ('smtp_from', 'Beachsportclub Cuxhaven e.V. <info@cux-beach.de>'),
-    ('admin_email', 'ruediger.sauer@cux-beach.de'),
+    ('smtp_from', ''),
+    ('admin_email', ''),
     ('payment_empfaenger', 'Beachsportclub Cuxhaven e.V.'),
     ('payment_iban', ''),
     ('payment_bic', ''),
     ('payment_bank', ''),
     ('payment_frist', '4 Wochen vor Turnierbeginn'),
     ('payment_storno_hinweis', 'Bei Abmeldung nach dem 15.06.2026 wird die Startgebühr nicht erstattet.'),
-    ('checkin_pin', '2005');
+    ('checkin_pin', '');
 `);
 
 // Migrate older databases that may be missing columns
@@ -119,9 +119,9 @@ function getSettings() {
 
 function seedUsers() {
   const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@bcc-ticketing.de';
-  const superPw   = process.env.SEED_SUPERADMIN_PASSWORD || 'SuperAdmin2026!';
+  const superPw   = process.env.SEED_SUPERADMIN_PASSWORD || 'changeme';
   const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@bcc-ticketing.de';
-  const adminPw   = process.env.SEED_ADMIN_PASSWORD || 'Admin2026!';
+  const adminPw   = process.env.SEED_ADMIN_PASSWORD || 'changeme';
 
   const existing = db.prepare('SELECT COUNT(*) as n FROM users').get().n;
   if (existing > 0) return;
