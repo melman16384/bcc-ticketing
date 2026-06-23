@@ -111,7 +111,7 @@ function QrScanner({ onCode, active }) {
   }, [active, onCode]);
 
   return (
-    <div className="relative w-full bg-black overflow-hidden" style={{ height: '62vmax', maxHeight: '70vh' }}>
+    <div className="relative w-full bg-black overflow-hidden" style={{ height: '70vmax', maxHeight: '80vh' }}>
       <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
       <canvas ref={canvasRef} className="hidden" />
 
@@ -256,7 +256,8 @@ function ResultSheet({ reg, onCheckinRequest, onReset, success }) {
       <div className={`${statusColor} text-white px-5 pt-5 pb-6`}>
         <button
           onClick={onReset}
-          className="text-white/70 text-sm mb-3 flex items-center gap-1 active:text-white"
+          className="mb-3 flex items-center gap-2 bg-white/20 active:bg-white/30 rounded-xl px-4 py-2.5 text-white font-semibold text-sm transition"
+          style={{ minHeight: 44 }}
         >
           ← Neuer Scan
         </button>
@@ -419,9 +420,6 @@ export default function CheckinPage() {
               <p className="text-shore-600 text-xs">Beach-Cup 2026</p>
             </div>
           </div>
-          <a href="/admin" className="text-xs text-shore-600 bg-white/60 rounded-xl px-3 py-1.5 active:bg-white/80">
-            Admin →
-          </a>
         </div>
 
         {/* Modus-Toggle im Header */}
@@ -453,7 +451,11 @@ export default function CheckinPage() {
           )}
           {error && (
             <div className="p-5 space-y-4">
-              <button onClick={reset} className="text-shore-500 text-sm flex items-center gap-1 active:text-shore-700">
+              <button
+                onClick={reset}
+                className="flex items-center gap-2 bg-shore-100 active:bg-shore-200 rounded-xl px-4 py-3 text-shore-600 font-semibold text-sm transition"
+                style={{ minHeight: 44 }}
+              >
                 ← Neuer Scan
               </button>
               <div className="rounded-2xl p-5 bg-red-50 border border-red-200 text-center space-y-2">
