@@ -1,0 +1,15 @@
+{
+  "name": "BCC Check-in",
+  "short_name": "Check-in",
+  "description": "Check-in Scanner – Mahrenholz Beach-Cup 2026",
+  "start_url": "/checkin",
+  "scope": "/checkin",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1d4f70",
+  "background_color": "#f5edd8",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
