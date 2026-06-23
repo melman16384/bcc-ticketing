@@ -154,6 +154,9 @@ function Sidebar({ onLogout }) {
           <div className="p-1.5 space-y-0.5 bg-red-50/40">
             <NavLink to="/admin/hesse" end className={mkNavCls('bg-red-600')}>📊 Dashboard</NavLink>
             <NavLink to="/admin/hesse/registrations" className={mkNavCls('bg-red-600')}>📋 Anmeldungen</NavLink>
+            {user.role === 'superadmin' && (
+              <NavLink to="/admin/hesse/settings" className={mkNavCls('bg-red-600')}>⚙️ Einstellungen</NavLink>
+            )}
           </div>
         </div>
 
@@ -1431,6 +1434,91 @@ function HesseDetail() {
   );
 }
 
+// ── Heße Cup: Superadmin-Einstellungen ───────────────────────────────────────
+function HesseSettings() {
+  const { data, loading, reload } = useAdminData('/api/hesse/superadmin/settings');
+  const [form, setForm] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { if (data) setForm({ ...data }); }, [data]);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const toggle = (key) => setForm((f) => ({ ...f, [key]: f[key] === '1' ? '0' : '1' }));
+
+  const save = async () => {
+    await authFetch('/api/hesse/superadmin/settings', { method: 'PATCH', body: JSON.stringify(form) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    reload();
+  };
+
+  if (loading || !form) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
+
+  const open = form.hesse_registration_open === '1';
+
+  return (
+    <div className="max-w-lg">
+      <PageHeader title="Heße Cup – Einstellungen" icon="⚙️" />
+
+      {/* Anmeldung öffnen/schließen */}
+      <div className="card mb-4">
+        <p className="section-title mb-3">🔒 Anmeldung</p>
+        <div
+          className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer select-none
+            ${open ? 'border-emerald-300 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
+          onClick={() => toggle('hesse_registration_open')}
+        >
+          <div>
+            <p className="text-sm font-semibold text-shore-700">
+              {open ? '✅ Anmeldung geöffnet' : '🔒 Anmeldung geschlossen'}
+            </p>
+            <p className="text-xs text-shore-400 mt-0.5">
+              {open
+                ? 'Neue Anmeldungen werden angenommen.'
+                : 'Neue Anmeldungen werden abgelehnt — Formular zeigt Hinweis.'}
+            </p>
+          </div>
+          <div className={`toggle ${open ? 'bg-emerald-400' : 'bg-red-300'}`}>
+            <div className={`toggle-thumb ${open ? 'left-6' : 'left-1'}`} />
+          </div>
+        </div>
+      </div>
+
+      {/* Zahlungsdaten */}
+      <div className="card mb-4">
+        <p className="section-title mb-3">💶 Zahlungsdaten (für Bestätigungs-E-Mail)</p>
+        <div className="space-y-3">
+          {[
+            { key: 'hesse_payment_empfaenger', label: 'Empfänger', placeholder: 'Beachsportclub Cuxhaven e.V.' },
+            { key: 'hesse_payment_iban',       label: 'IBAN',      placeholder: 'DE00 0000 0000 0000 0000 00' },
+            { key: 'hesse_payment_bic',        label: 'BIC',       placeholder: 'BANKDEXXXX' },
+            { key: 'hesse_payment_bank',       label: 'Bank',      placeholder: 'Sparkasse Cuxhaven' },
+            { key: 'hesse_payment_frist',      label: 'Zahlungsfrist', placeholder: '4 Wochen vor Turnierbeginn' },
+          ].map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className="form-label">{label}</label>
+              <input type="text" className="form-input" placeholder={placeholder}
+                value={form[key] || ''} onChange={set(key)} />
+            </div>
+          ))}
+          <div>
+            <label className="form-label">Storno-Hinweis</label>
+            <textarea className="form-input min-h-[72px] resize-y" rows={3}
+              placeholder="Bei Abmeldung nach dem 15.06.2026…"
+              value={form.hesse_payment_storno_hinweis || ''}
+              onChange={set('hesse_payment_storno_hinweis')}
+            />
+          </div>
+        </div>
+      </div>
+
+      <button className="btn-primary" onClick={save}>
+        {saved ? '✓ Gespeichert' : 'Speichern'}
+      </button>
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -1448,6 +1536,7 @@ export default function AdminPage() {
           <Route path="hesse" element={<HesseDashboard />} />
           <Route path="hesse/registrations" element={<HesseList />} />
           <Route path="hesse/registrations/:id" element={<HesseDetail />} />
+          {user.role === 'superadmin' && <Route path="hesse/settings" element={<HesseSettings />} />}
           <Route path="waitlist" element={<WaitlistSettings />} />
           {user.role === 'superadmin' && <Route path="smtp" element={<SmtpSettings />} />}
           {user.role === 'superadmin' && <Route path="users" element={<UserManagement />} />}
