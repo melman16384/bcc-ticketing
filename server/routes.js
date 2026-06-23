@@ -1,0 +1,417 @@
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { db, getSettings } = require('./db');
+const { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo } = require('./mailer');
+
+const JWT_SECRET = () => process.env.JWT_SECRET || 'fallback-secret';
+
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous I/1/O/0
+function genBookingCode() {
+  let code;
+  do {
+    const part = (n) => Array.from({ length: n }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+    code = `${part(4)}-${part(4)}`;
+  } while (db.prepare('SELECT 1 FROM registrations WHERE booking_code = ?').get(code));
+  return code;
+}
+
+// ── Auth-Middleware ───────────────────────────────────────────────────────────
+function auth(requiredRole) {
+  return (req, res, next) => {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Nicht angemeldet' });
+    }
+    try {
+      const payload = jwt.verify(header.slice(7), JWT_SECRET());
+      req.user = payload;
+      if (requiredRole === 'superadmin' && payload.role !== 'superadmin') {
+        return res.status(403).json({ error: 'Nur Superadmin erlaubt' });
+      }
+      next();
+    } catch {
+      res.status(401).json({ error: 'Token ungültig oder abgelaufen' });
+    }
+  };
+}
+
+// ── Hilfsfunktionen ───────────────────────────────────────────────────────────
+function calcFees(d) {
+  const mannschaft =
+    (d.kotc_maennlich || 0) * 15 + (d.kotc_weiblich || 0) * 15 + (d.kotc_mixed || 0) * 15 +
+    (d.beach_fun_a || 0) * 95 + (d.beach_fun_b || 0) * 95;
+  const teilnehmer = (d.begleitpersonen || 0) * 20 + (d.kinder_jugendliche || 0) * 13;
+  const pkw = (d.pkw_stellplaetze || 0) * 15;
+  const fruehstueck = ((d.fruehstueck_samstag || 0) + (d.fruehstueck_sonntag || 0)) * 9.5;
+  return {
+    gebuehr_mannschaft: mannschaft,
+    gebuehr_teilnehmer: teilnehmer,
+    gebuehr_pkw: pkw,
+    gebuehr_fruehstueck: fruehstueck,
+    gebuehr_gesamt: mannschaft + teilnehmer + pkw + fruehstueck,
+  };
+}
+
+function isWaitlist(data) {
+  const map = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value]));
+  if (map.kotc_maennlich_waitlist === '1' && (data.kotc_maennlich || 0) > 0) return true;
+  if (map.beach_fun_a_waitlist === '1' && (data.beach_fun_a || 0) > 0) return true;
+  if (map.beach_fun_b_waitlist === '1' && (data.beach_fun_b || 0) > 0) return true;
+  return false;
+}
+
+// ── PUBLIC: Login ─────────────────────────────────────────────────────────────
+router.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'E-Mail und Passwort erforderlich' });
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+  }
+
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET(), { expiresIn: '30d' });
+  res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+});
+
+router.get('/auth/me', auth('admin'), (req, res) => res.json(req.user));
+
+// ── PUBLIC: Wartelisten-Status ────────────────────────────────────────────────
+router.get('/waitlist-status', (req, res) => {
+  const map = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value === '1']));
+  res.json(map);
+});
+
+// ── PUBLIC: Anmeldung einreichen ──────────────────────────────────────────────
+router.post('/registrations', async (req, res) => {
+  try {
+    const d = req.body;
+    if (!d.vorname || !d.nachname || !d.email || !d.strasse || !d.ort || !d.plz || !d.telefon) {
+      return res.status(400).json({ error: 'Pflichtfelder fehlen' });
+    }
+
+    const fees = calcFees(d);
+    const waitlist = isWaitlist(d) ? 1 : 0;
+    const booking_code = genBookingCode();
+
+    const result = db.prepare(`
+      INSERT INTO registrations (
+        vereinsname, vorname, nachname, strasse, ort, plz, email, telefon, kunden_nr,
+        kotc_maennlich, kotc_weiblich, kotc_mixed, beach_fun_a, beach_fun_b,
+        names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b,
+        begleitpersonen, kinder_jugendliche, pkw_stellplaetze,
+        fruehstueck_samstag, fruehstueck_sonntag,
+        ankunftstag, transport_bahn_bus, transport_pkw, transport_motorrad, transport_wohnmobil,
+        zelte_turnier, fremder_camping, ferienwohnung, hotel, teilnehmer_anzahl, zuschauer_anzahl,
+        ort_datum_name, datenschutz_consent,
+        gebuehr_mannschaft, gebuehr_teilnehmer, gebuehr_pkw, gebuehr_fruehstueck, gebuehr_gesamt,
+        auf_warteliste, status, booking_code
+      ) VALUES (
+        @vereinsname, @vorname, @nachname, @strasse, @ort, @plz, @email, @telefon, @kunden_nr,
+        @kotc_maennlich, @kotc_weiblich, @kotc_mixed, @beach_fun_a, @beach_fun_b,
+        @names_kotc_maennlich, @names_kotc_weiblich, @names_kotc_mixed, @names_beach_fun_a, @names_beach_fun_b,
+        @begleitpersonen, @kinder_jugendliche, @pkw_stellplaetze,
+        @fruehstueck_samstag, @fruehstueck_sonntag,
+        @ankunftstag, @transport_bahn_bus, @transport_pkw, @transport_motorrad, @transport_wohnmobil,
+        @zelte_turnier, @fremder_camping, @ferienwohnung, @hotel, @teilnehmer_anzahl, @zuschauer_anzahl,
+        @ort_datum_name, @datenschutz_consent,
+        @gebuehr_mannschaft, @gebuehr_teilnehmer, @gebuehr_pkw, @gebuehr_fruehstueck, @gebuehr_gesamt,
+        @auf_warteliste, @status, @booking_code
+      )
+    `).run({
+      vereinsname: d.vereinsname || null, vorname: d.vorname, nachname: d.nachname,
+      strasse: d.strasse, ort: d.ort, plz: d.plz, email: d.email, telefon: d.telefon, kunden_nr: d.kunden_nr || null,
+      kotc_maennlich: d.kotc_maennlich || 0, kotc_weiblich: d.kotc_weiblich || 0, kotc_mixed: d.kotc_mixed || 0,
+      beach_fun_a: d.beach_fun_a || 0, beach_fun_b: d.beach_fun_b || 0,
+      names_kotc_maennlich: d.names_kotc_maennlich || null, names_kotc_weiblich: d.names_kotc_weiblich || null,
+      names_kotc_mixed: d.names_kotc_mixed || null, names_beach_fun_a: d.names_beach_fun_a || null,
+      names_beach_fun_b: d.names_beach_fun_b || null,
+      begleitpersonen: d.begleitpersonen || 0, kinder_jugendliche: d.kinder_jugendliche || 0,
+      pkw_stellplaetze: d.pkw_stellplaetze || 0, fruehstueck_samstag: d.fruehstueck_samstag || 0,
+      fruehstueck_sonntag: d.fruehstueck_sonntag || 0,
+      ankunftstag: d.ankunftstag || null, transport_bahn_bus: d.transport_bahn_bus || 'Nein',
+      transport_pkw: d.transport_pkw || 0, transport_motorrad: d.transport_motorrad || 0,
+      transport_wohnmobil: d.transport_wohnmobil || 0, zelte_turnier: d.zelte_turnier || 0,
+      fremder_camping: d.fremder_camping || 0, ferienwohnung: d.ferienwohnung || 0,
+      hotel: d.hotel || 0, teilnehmer_anzahl: d.teilnehmer_anzahl || 0, zuschauer_anzahl: d.zuschauer_anzahl || 0,
+      ort_datum_name: d.ort_datum_name || null, datenschutz_consent: d.datenschutz_consent ? 1 : 0,
+      ...fees, auf_warteliste: waitlist, status: waitlist ? 'waitlist' : 'pending', booking_code,
+    });
+
+    const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(result.lastInsertRowid);
+
+    sendRegistrationConfirmation(reg).catch((e) => console.error('[Mailer]', e.message));
+    sendAdminNotification(reg).catch((e) => console.error('[Mailer]', e.message));
+
+    res.json({ id: reg.id, booking_code: reg.booking_code, waitlist: !!waitlist, fees });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
+// ── ADMIN: Registrierungen ────────────────────────────────────────────────────
+router.get('/admin/registrations', auth('admin'), (req, res) => {
+  const { status, search, checked_in } = req.query;
+  let query = 'SELECT * FROM registrations';
+  const params = [];
+  const where = [];
+  if (status) { where.push('status = ?'); params.push(status); }
+  if (checked_in === 'true') { where.push('checked_in_at IS NOT NULL'); }
+  if (search) {
+    where.push('(vorname LIKE ? OR nachname LIKE ? OR email LIKE ? OR vereinsname LIKE ?)');
+    const s = `%${search}%`;
+    params.push(s, s, s, s);
+  }
+  if (where.length) query += ' WHERE ' + where.join(' AND ');
+  query += ' ORDER BY created_at DESC';
+  res.json(db.prepare(query).all(...params));
+});
+
+router.get('/admin/registrations/:id', auth('admin'), (req, res) => {
+  const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  res.json(reg);
+});
+
+router.delete('/admin/registrations/:id', auth('superadmin'), (req, res) => {
+  const reg = db.prepare('SELECT id FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  db.prepare('DELETE FROM registrations WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.patch('/admin/registrations/:id/status', auth('admin'), (req, res) => {
+  const { status } = req.body;
+  if (!['pending', 'confirmed', 'waitlist', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Ungültiger Status' });
+  }
+  const reg = db.prepare('SELECT status FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status === 'confirmed' || reg.status === 'cancelled') {
+    return res.status(409).json({ error: 'Bestätigte oder stornierte Anmeldungen können nicht mehr geändert werden' });
+  }
+  db.prepare('UPDATE registrations SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json({ ok: true });
+});
+
+// Bestätigen + Zahlungsinfo-Mail senden (zweifache Bestätigung erforderlich, danach gesperrt)
+router.post('/admin/registrations/:id/confirm', auth('admin'), async (req, res) => {
+  const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status === 'confirmed') {
+    return res.status(409).json({ error: 'Bereits bestätigt' });
+  }
+  if (!req.body.confirmed) {
+    return res.status(400).json({ error: 'Bestätigung fehlt' });
+  }
+
+  db.prepare("UPDATE registrations SET status = 'confirmed', confirmed_at = datetime('now','localtime') WHERE id = ?").run(req.params.id);
+
+  const updated = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  sendPaymentInfo(updated).catch((e) => console.error('[Mailer]', e.message));
+  res.json({ ok: true });
+});
+
+// Zahlungseingang bestätigen → Check-in-Token generieren + QR-Code-Mail senden
+router.post('/admin/registrations/:id/payment', auth('admin'), async (req, res) => {
+  const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status !== 'confirmed') return res.status(409).json({ error: 'Nur bestätigte Anmeldungen können als bezahlt markiert werden' });
+  if (reg.payment_received_at) return res.status(409).json({ error: 'Zahlung bereits bestätigt' });
+  if (!req.body.confirmed) return res.status(400).json({ error: 'Bestätigung fehlt' });
+
+  db.prepare("UPDATE registrations SET payment_received_at = datetime('now','localtime') WHERE id = ?").run(reg.id);
+  const updated = db.prepare('SELECT * FROM registrations WHERE id = ?').get(reg.id);
+  const { sendQrCodeEmail } = require('./mailer');
+  sendQrCodeEmail(updated).catch((e) => console.error('[Mailer]', e.message));
+  res.json({ ok: true });
+});
+
+// ── CHECKIN: Buchung per Buchungscode nachschlagen (öffentlich) ───────────────
+router.get('/checkin/:code', (req, res) => {
+  const reg = db.prepare(`
+    SELECT id, booking_code, status, auf_warteliste, payment_received_at, checked_in_at,
+           vorname, nachname, vereinsname, email, telefon,
+           kotc_maennlich, kotc_weiblich, kotc_mixed, beach_fun_a, beach_fun_b,
+           names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b,
+           gebuehr_gesamt, confirmed_at, created_at
+    FROM registrations WHERE booking_code = ?
+  `).get(req.params.code.toUpperCase());
+  if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+  res.json(reg);
+});
+
+// ── CHECKIN: Einchecken mit PIN-Bestätigung (kein Login nötig) ───────────────
+router.post('/checkin/:code', (req, res) => {
+  const { getSettings } = require('./db');
+  const correctPin = getSettings().checkin_pin || '2005';
+  if (!req.body.pin || req.body.pin !== correctPin) {
+    return res.status(401).json({ error: 'Falscher PIN' });
+  }
+  const reg = db.prepare('SELECT * FROM registrations WHERE booking_code = ?').get(req.params.code.toUpperCase());
+  if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+  if (reg.status !== 'confirmed') return res.status(400).json({ error: 'Anmeldung ist nicht bestätigt' });
+  if (!reg.payment_received_at) return res.status(400).json({ error: 'Zahlung noch nicht bestätigt' });
+  if (reg.checked_in_at) return res.status(409).json({ error: 'Bereits eingecheckt', checked_in_at: reg.checked_in_at });
+  db.prepare("UPDATE registrations SET checked_in_at = datetime('now','localtime') WHERE booking_code = ?").run(req.params.code.toUpperCase());
+  res.json({ ok: true });
+});
+
+// Stornieren + Stornierungsmail senden (zweifache Bestätigung, danach gesperrt)
+router.post('/admin/registrations/:id/cancel', auth('admin'), async (req, res) => {
+  const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status === 'confirmed') return res.status(409).json({ error: 'Bestätigte Anmeldungen können nicht storniert werden' });
+  if (reg.status === 'cancelled') return res.status(409).json({ error: 'Bereits storniert' });
+  if (!req.body.confirmed) return res.status(400).json({ error: 'Bestätigung fehlt' });
+
+  db.prepare("UPDATE registrations SET status = 'cancelled' WHERE id = ?").run(req.params.id);
+
+  const updated = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  const { sendCancellationEmail } = require('./mailer');
+  sendCancellationEmail(updated).catch((e) => console.error('[Mailer]', e.message));
+  res.json({ ok: true });
+});
+
+// ── ADMIN: Statistiken ────────────────────────────────────────────────────────
+router.get('/admin/stats', auth('admin'), (req, res) => {
+  const total      = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE status != 'cancelled'").get().n;
+  const confirmed  = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE status = 'confirmed'").get().n;
+  const pending    = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE status = 'pending'").get().n;
+  const waitlist   = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE status = 'waitlist'").get().n;
+  const cancelled  = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE status = 'cancelled'").get().n;
+  const checked_in = db.prepare("SELECT COUNT(*) as n FROM registrations WHERE checked_in_at IS NOT NULL").get().n;
+  const revenue    = db.prepare("SELECT COALESCE(SUM(gebuehr_gesamt),0) as s FROM registrations WHERE status = 'confirmed'").get().s;
+  const teams      = db.prepare(`
+    SELECT SUM(kotc_maennlich) as kotc_m, SUM(kotc_weiblich) as kotc_w, SUM(kotc_mixed) as kotc_x,
+           SUM(beach_fun_a) as bfa, SUM(beach_fun_b) as bfb
+    FROM registrations WHERE status != 'cancelled'`).get();
+  res.json({ total, confirmed, pending, waitlist, cancelled, checked_in, revenue, teams });
+});
+
+// ── ADMIN: Einstellungen ──────────────────────────────────────────────────────
+router.get('/admin/settings', auth('admin'), (req, res) => {
+  res.json(Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value])));
+});
+
+router.patch('/admin/settings', auth('admin'), (req, res) => {
+  const allowed = ['kotc_maennlich_waitlist','kotc_weiblich_waitlist','kotc_mixed_waitlist','beach_fun_a_waitlist','beach_fun_b_waitlist'];
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  for (const key of allowed) {
+    if (key in req.body) stmt.run(key, req.body[key] ? '1' : '0');
+  }
+  res.json({ ok: true });
+});
+
+// ── SUPERADMIN: SMTP-Einstellungen ────────────────────────────────────────────
+router.get('/superadmin/smtp', auth('superadmin'), (req, res) => {
+  const s = getSettings();
+  res.json({
+    smtp_host:   s.smtp_host   || process.env.SMTP_HOST   || '',
+    smtp_port:   s.smtp_port   || process.env.SMTP_PORT   || '587',
+    smtp_secure: s.smtp_secure || process.env.SMTP_SECURE || 'false',
+    smtp_user:   s.smtp_user   || process.env.SMTP_USER   || '',
+    smtp_from:   s.smtp_from   || process.env.SMTP_FROM   || '',
+    admin_email: s.admin_email || process.env.ADMIN_EMAIL || '',
+    smtp_pass_set: !!(s.smtp_pass || process.env.SMTP_PASS),
+    payment_empfaenger:     s.payment_empfaenger     || 'Beachsportclub Cuxhaven e.V.',
+    payment_iban:           s.payment_iban           || '',
+    payment_bic:            s.payment_bic            || '',
+    payment_bank:           s.payment_bank           || '',
+    payment_frist:          s.payment_frist          || '4 Wochen vor Turnierbeginn',
+    payment_storno_hinweis: s.payment_storno_hinweis || '',
+  });
+});
+
+router.patch('/superadmin/smtp', auth('superadmin'), (req, res) => {
+  const allowed = [
+    'smtp_host','smtp_port','smtp_secure','smtp_user','smtp_pass','smtp_from','admin_email',
+    'payment_empfaenger','payment_iban','payment_bic','payment_bank','payment_frist','payment_storno_hinweis',
+  ];
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  for (const key of allowed) {
+    if (key in req.body) stmt.run(key, String(req.body[key]));
+  }
+  res.json({ ok: true });
+});
+
+router.post('/superadmin/smtp/test', auth('superadmin'), async (req, res) => {
+  try {
+    const { sendAdminNotification } = require('./mailer');
+    const testReg = {
+      id: 0, vorname: 'Test', nachname: 'Mail', vereinsname: 'BCC Test',
+      strasse: '-', plz: '-', ort: '-', email: req.user.email, telefon: '-',
+      kotc_weiblich: 1, gebuehr_gesamt: 0, gebuehr_mannschaft: 0, gebuehr_teilnehmer: 0,
+      gebuehr_pkw: 0, gebuehr_fruehstueck: 0, auf_warteliste: 0,
+    };
+    await sendAdminNotification(testReg);
+    res.json({ ok: true, message: `Test-Mail an ${req.user.email} gesendet` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── ADMIN: CSV-Export ─────────────────────────────────────────────────────────
+router.get('/admin/export/csv', auth('admin'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM registrations ORDER BY created_at DESC').all();
+  if (!rows.length) return res.send('Keine Daten');
+  const headers = Object.keys(rows[0]);
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v).replace(/"/g, '""');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+  };
+  const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => escape(r[h])).join(','))].join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="anmeldungen.csv"');
+  res.send('﻿' + csv);
+});
+
+// ── SUPERADMIN: Benutzerverwaltung ────────────────────────────────────────────
+router.get('/superadmin/users', auth('superadmin'), (req, res) => {
+  res.json(db.prepare('SELECT id, email, role, name, created_at FROM users ORDER BY created_at').all());
+});
+
+router.post('/superadmin/users', auth('superadmin'), (req, res) => {
+  const { email, password, role, name } = req.body;
+  if (!email || !password || !['admin', 'superadmin'].includes(role)) {
+    return res.status(400).json({ error: 'E-Mail, Passwort und gültige Rolle erforderlich' });
+  }
+  try {
+    const hash = bcrypt.hashSync(password, 10);
+    const result = db.prepare('INSERT INTO users (email, password_hash, role, name) VALUES (?, ?, ?, ?)').run(email.toLowerCase().trim(), hash, role, name || null);
+    res.json({ id: result.lastInsertRowid, email, role, name });
+  } catch {
+    res.status(409).json({ error: 'E-Mail bereits vergeben' });
+  }
+});
+
+router.patch('/superadmin/users/:id', auth('superadmin'), (req, res) => {
+  const { password, role, name } = req.body;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+
+  if (password) {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), req.params.id);
+  }
+  if (role && ['admin', 'superadmin'].includes(role)) {
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.id);
+  }
+  if (name !== undefined) {
+    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name || null, req.params.id);
+  }
+  res.json({ ok: true });
+});
+
+router.delete('/superadmin/users/:id', auth('superadmin'), (req, res) => {
+  if (parseInt(req.params.id) === req.user.id) {
+    return res.status(400).json({ error: 'Sie können sich nicht selbst löschen' });
+  }
+  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+module.exports = router;

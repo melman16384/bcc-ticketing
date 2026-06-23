@@ -1,0 +1,128 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-shore-50 text-shore-800 font-sans antialiased;
+  }
+  * { box-sizing: border-box; }
+}
+
+@layer components {
+  /* ── Form ── */
+  .form-label {
+    @apply block text-sm font-semibold text-shore-700 mb-1.5;
+  }
+  .form-input {
+    @apply w-full border border-shore-200 rounded-lg px-3.5 py-2.5 text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-ocean-400 focus:border-transparent
+           placeholder-shore-400 transition;
+  }
+  .form-input:disabled {
+    @apply bg-shore-100 cursor-not-allowed text-shore-400;
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-ocean-600 text-white px-5 py-2.5
+           rounded-lg font-semibold text-sm hover:bg-ocean-700 active:bg-ocean-800
+           transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 bg-white text-shore-700 px-5 py-2.5
+           rounded-lg font-semibold text-sm border border-shore-200
+           hover:bg-shore-50 active:bg-shore-100 transition shadow-sm;
+  }
+  .btn-success {
+    @apply inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5
+           rounded-lg font-semibold text-sm hover:bg-emerald-700 transition
+           shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 bg-red-500 text-white px-5 py-2.5
+           rounded-lg font-semibold text-sm hover:bg-red-600 transition
+           shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sand {
+    @apply inline-flex items-center gap-2 bg-sand-100 text-sand-700 px-5 py-2.5
+           rounded-lg font-semibold text-sm border border-sand-200
+           hover:bg-sand-200 transition shadow-sm;
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-shore-200 p-6;
+  }
+  .card-sm {
+    @apply bg-white rounded-xl shadow-sm border border-shore-200 p-4;
+  }
+  .stat-card {
+    @apply bg-white rounded-2xl shadow-sm border border-shore-200 p-5 flex flex-col gap-1;
+  }
+
+  /* ── Misc ── */
+  .fee-row {
+    @apply flex justify-between items-center py-1.5 text-sm;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border;
+  }
+
+  /* ── Admin Sidebar (light theme) ── */
+  .sidebar-link {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium
+           text-shore-600 hover:bg-shore-100 hover:text-shore-800 transition cursor-pointer;
+  }
+  .sidebar-link.active {
+    @apply bg-ocean-600 text-white shadow-sm;
+  }
+
+  /* ── Section divider ── */
+  .section-title {
+    @apply text-xs font-bold text-shore-400 uppercase tracking-widest mb-2 pb-1 border-b border-shore-100;
+  }
+}
+
+/* ── Slider ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 3px;
+  background: #e8e2d2;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #24638a;
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  transition: background .15s;
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: #1d4f70;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #24638a;
+  cursor: pointer;
+  border: 3px solid white;
+}
+
+/* ── Toggle switch ── */
+.toggle {
+  @apply relative w-11 h-6 rounded-full transition cursor-pointer;
+}
+.toggle-thumb {
+  @apply absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all;
+}
