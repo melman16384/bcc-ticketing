@@ -718,8 +718,6 @@ function WaitlistSettings() {
 
   const save = async () => {
     const payload = { ...settings };
-    payload.registration_open = settings.registration_open ? '1' : '0';
-    payload.hesse_registration_open = settings.hesse_registration_open ? '1' : '0';
     await authFetch('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(payload) });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
