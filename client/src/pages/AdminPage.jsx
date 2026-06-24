@@ -1414,7 +1414,7 @@ function HesseDetail() {
           </div>
 
           {getUser().role === 'superadmin' && (
-            <DeleteRegistration id={id} apiPrefix="/api/hesse" onDeleted={() => navigate('/admin/hesse/registrations')} />
+            <DeleteRegistration id={id} apiPrefix="/api/hesse/admin" onDeleted={() => navigate('/admin/hesse/registrations')} />
           )}
         </div>
 
