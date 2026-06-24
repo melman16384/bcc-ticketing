@@ -10,10 +10,12 @@ const CATS = [
 ];
 
 const STATUS_MAP = {
-  pending:   { label: 'Ausstehend',  cls: 'bg-amber-50 text-amber-700 border-amber-200',   icon: '⏳' },
-  confirmed: { label: 'Bestätigt',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: '✅' },
-  waitlist:  { label: 'Warteliste',  cls: 'bg-sand-50 text-sand-700 border-sand-200',      icon: '📋' },
-  cancelled: { label: 'Storniert',   cls: 'bg-red-50 text-red-600 border-red-200',         icon: '❌' },
+  pending:          { label: 'Ausstehend',         cls: 'bg-amber-50 text-amber-700 border-amber-200',     icon: '⏳' },
+  confirmed:        { label: 'Bestätigt',           cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: '✅' },
+  waitlist:         { label: 'Warteliste',          cls: 'bg-sand-50 text-sand-700 border-sand-200',        icon: '📋' },
+  payment_received: { label: 'Zahlung eingegangen', cls: 'bg-blue-50 text-blue-700 border-blue-200',        icon: '💳' },
+  checked_in:       { label: 'Eingecheckt',         cls: 'bg-violet-50 text-violet-700 border-violet-200',  icon: '🎟️' },
+  cancelled:        { label: 'Storniert',           cls: 'bg-red-50 text-red-600 border-red-200',           icon: '❌' },
 };
 
 function Field({ label, value }) {
@@ -126,7 +128,7 @@ export default function BuchungPage() {
               <div className="card">
                 <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">Anmeldung</p>
                 <dl>
-                  <Field label="Angemeldet am" value={reg.confirmed_at ? reg.confirmed_at.slice(0,16) + ' Uhr' : null} />
+                  <Field label="Angemeldet am" value={reg.created_at ? reg.created_at.slice(0,16) + ' Uhr' : null} />
                   <Field label="Bestätigt am"  value={reg.confirmed_at ? reg.confirmed_at.slice(0,16) + ' Uhr' : null} />
                   <Field label="Zahlung"        value={reg.payment_received_at ? '✅ Zahlungseingang bestätigt' : null} />
                   <Field label="Check-in"       value={reg.checked_in_at ? '✅ ' + reg.checked_in_at.slice(0,16) + ' Uhr' : null} />
@@ -216,7 +218,7 @@ export default function BuchungPage() {
                 </div>
               )}
 
-              {!cancelled && reg.status === 'confirmed' && (
+              {!cancelled && ['confirmed', 'payment_received', 'checked_in'].includes(reg.status) && (
                 <div className="card border-amber-200 bg-amber-50">
                   <p className="text-sm text-amber-700">
                     <strong>Stornierung:</strong> Bestätigte Anmeldungen können nur durch den Veranstalter storniert werden. Bitte melden Sie sich per E-Mail.

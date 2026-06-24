@@ -298,7 +298,7 @@ router.post('/checkin/:code', (req, res) => {
 router.post('/admin/registrations/:id/cancel', auth('admin'), async (req, res) => {
   const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
   if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
-  if (reg.status === 'confirmed') return res.status(409).json({ error: 'Bestätigte Anmeldungen können nicht storniert werden' });
+  if (['confirmed', 'payment_received', 'checked_in'].includes(reg.status)) return res.status(409).json({ error: 'Abgeschlossene Anmeldungen können nicht storniert werden' });
   if (reg.status === 'cancelled') return res.status(409).json({ error: 'Bereits storniert' });
   if (!req.body.confirmed) return res.status(400).json({ error: 'Bestätigung fehlt' });
 
@@ -474,13 +474,13 @@ router.patch('/superadmin/pin', auth('superadmin'), (req, res) => {
 // ── PUBLIC: Buchungsübersicht ─────────────────────────────────────────────────
 router.get('/buchung/:code', (req, res) => {
   const code = req.params.code.toUpperCase();
-  const m = db.prepare(`SELECT id, booking_code, status, auf_warteliste, confirmed_at, payment_received_at, checked_in_at,
+  const m = db.prepare(`SELECT id, booking_code, status, auf_warteliste, created_at, confirmed_at, payment_received_at, checked_in_at,
     vorname, nachname, vereinsname,
     kotc_maennlich, kotc_weiblich, kotc_mixed, beach_fun_a, beach_fun_b,
     names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b,
     gebuehr_gesamt FROM registrations WHERE booking_code = ?`).get(code);
   if (m) return res.json({ ...m, cup: 'mahrenholz' });
-  const h = db.prepare(`SELECT id, booking_code, status, confirmed_at, payment_received_at, checked_in_at,
+  const h = db.prepare(`SELECT id, booking_code, status, created_at, confirmed_at, payment_received_at, checked_in_at,
     vorname, nachname, firma, mannschaften, mannschaftsnamen, teilnehmer_anzahl,
     gebuehr_gesamt FROM hesse_registrations WHERE booking_code = ?`).get(code);
   if (h) return res.json({ ...h, cup: 'hesse' });
@@ -517,7 +517,7 @@ router.post('/buchung/:code/cancel', async (req, res) => {
   if (!reg) { reg = db.prepare('SELECT * FROM hesse_registrations WHERE booking_code = ?').get(code); cup = 'hesse'; }
   if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });
   if (reg.status === 'cancelled') return res.status(409).json({ error: 'Bereits storniert' });
-  if (reg.status === 'confirmed') return res.status(409).json({ error: 'Bestätigte Anmeldungen können nur durch den Veranstalter storniert werden. Bitte per E-Mail melden.' });
+  if (['confirmed', 'payment_received', 'checked_in'].includes(reg.status)) return res.status(409).json({ error: 'Bestätigte Anmeldungen können nur durch den Veranstalter storniert werden. Bitte per E-Mail melden.' });
 
   const table = cup === 'hesse' ? 'hesse_registrations' : 'registrations';
   db.prepare(`UPDATE ${table} SET status = 'cancelled' WHERE booking_code = ?`).run(code);

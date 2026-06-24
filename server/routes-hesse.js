@@ -138,7 +138,7 @@ router.post('/admin/registrations/:id/confirm', auth('admin'), async (req, res) 
 router.post('/admin/registrations/:id/cancel', auth('admin'), async (req, res) => {
   const reg = db.prepare('SELECT * FROM hesse_registrations WHERE id = ?').get(req.params.id);
   if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
-  if (reg.status === 'confirmed') return res.status(409).json({ error: 'Bestätigte Anmeldungen können nicht storniert werden' });
+  if (['confirmed', 'payment_received', 'checked_in'].includes(reg.status)) return res.status(409).json({ error: 'Abgeschlossene Anmeldungen können nicht storniert werden' });
   if (!req.body.confirmed) return res.status(400).json({ error: 'Bestätigung fehlt' });
   db.prepare("UPDATE hesse_registrations SET status = 'cancelled' WHERE id = ?").run(reg.id);
   const updated = db.prepare('SELECT * FROM hesse_registrations WHERE id = ?').get(reg.id);
