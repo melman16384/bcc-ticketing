@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HesseFormWizard from '../components/hesse/HesseFormWizard';
 
 function WelcomePage({ onStart }) {
+  const [regOpen, setRegOpen] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/waitlist-status').then((r) => r.json()).then((d) => setRegOpen(d.hesse_registration_open !== false)).catch(() => setRegOpen(true));
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(180deg, #fdf0f0 0%, #fff 60%, #fdf0f0 100%)' }}>
       <header style={{ background: 'linear-gradient(135deg, #e8a0a0 0%, #c0392b 100%)' }}>
@@ -61,15 +67,26 @@ function WelcomePage({ onStart }) {
 
         {/* CTA */}
         <div className="text-center space-y-3 pb-4">
-          <button
-            onClick={onStart}
-            className="inline-flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-lg text-white shadow-lg transition active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #e8a0a0 0%, #c0392b 100%)' }}
-          >
-            Jetzt anmelden
-            <span className="text-xl">→</span>
-          </button>
-          <p className="text-shore-400 text-xs">Die Anmeldung dauert ca. 2–3 Minuten</p>
+          {regOpen === false ? (
+            <div className="inline-block bg-red-50 border border-red-200 rounded-2xl px-8 py-5 space-y-1">
+              <p className="text-2xl">🔒</p>
+              <p className="font-bold text-red-700 text-base">Anmeldung geschlossen</p>
+              <p className="text-red-500 text-sm">Die Anmeldephase ist beendet.</p>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={onStart}
+                disabled={regOpen === null}
+                className="inline-flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-lg text-white shadow-lg transition active:scale-95 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #e8a0a0 0%, #c0392b 100%)' }}
+              >
+                Jetzt anmelden
+                <span className="text-xl">→</span>
+              </button>
+              <p className="text-shore-400 text-xs">Die Anmeldung dauert ca. 2–3 Minuten</p>
+            </>
+          )}
         </div>
       </div>
 

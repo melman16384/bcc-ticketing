@@ -110,15 +110,25 @@ function WelcomePage({ onStart }) {
 
         {/* CTA */}
         <div className="text-center space-y-3 pb-4">
-          <button
-            onClick={onStart}
-            className="inline-flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-lg text-white shadow-lg transition active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #24638a 0%, #1d4f70 100%)' }}
-          >
-            Jetzt anmelden
-            <span className="text-xl">→</span>
-          </button>
-          <p className="text-shore-400 text-xs">Die Anmeldung dauert ca. 3–5 Minuten</p>
+          {waitlist.registration_open === false ? (
+            <div className="inline-block bg-red-50 border border-red-200 rounded-2xl px-8 py-5 space-y-1">
+              <p className="text-2xl">🔒</p>
+              <p className="font-bold text-red-700 text-base">Anmeldung geschlossen</p>
+              <p className="text-red-500 text-sm">Die Anmeldephase ist beendet.</p>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={onStart}
+                className="inline-flex items-center gap-3 px-10 py-4 rounded-2xl font-bold text-lg text-white shadow-lg transition active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #24638a 0%, #1d4f70 100%)' }}
+              >
+                Jetzt anmelden
+                <span className="text-xl">→</span>
+              </button>
+              <p className="text-shore-400 text-xs">Die Anmeldung dauert ca. 3–5 Minuten</p>
+            </>
+          )}
         </div>
       </div>
 
