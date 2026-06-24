@@ -163,6 +163,7 @@ function Sidebar({ onLogout }) {
           <NavLink to="/admin/waitlist" className={mkNavCls('bg-ocean-600')}>⏳ Warteliste</NavLink>
           {user.role === 'superadmin' && <>
             <NavLink to="/admin/smtp" className={mkNavCls('bg-ocean-600')}>✉️ E-Mail / SMTP</NavLink>
+            <NavLink to="/admin/payment" className={mkNavCls('bg-ocean-600')}>💶 Zahlungsdaten</NavLink>
             <NavLink to="/admin/users" className={mkNavCls('bg-ocean-600')}>👤 Benutzer</NavLink>
           </>}
           <p className="px-3 pt-3 pb-1 text-xs font-bold text-shore-400 uppercase tracking-widest">Links</p>
@@ -794,10 +795,9 @@ function SmtpSettings() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="E-Mail & Zahlungseinstellungen" icon="✉️" />
+      <PageHeader title="E-Mail / SMTP" icon="✉️" />
 
-      {/* SMTP */}
-      <div className="card space-y-4 mb-5">
+      <div className="card space-y-4">
         <p className="text-xs font-bold text-shore-400 uppercase tracking-widest">SMTP-Zugangsdaten</p>
         <p className="text-sm text-shore-500 -mt-2">
           Überschreibt die <code className="bg-shore-100 px-1 rounded text-xs">.env</code>-Werte.
@@ -852,12 +852,35 @@ function SmtpSettings() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Zahlungsinformationen */}
+// ── Payment Settings ──────────────────────────────────────────────────────────
+function PaymentSettings() {
+  const { data, loading } = useAdminData('/api/superadmin/smtp');
+  const [form, setForm] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { if (data) setForm({ ...data }); }, [data]);
+
+  const handleChange = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
+
+  const save = async () => {
+    await authFetch('/api/superadmin/smtp', { method: 'PATCH', body: JSON.stringify(form) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  if (loading || !form) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
+
+  return (
+    <div className="max-w-xl">
+      <PageHeader title="Zahlungseinstellungen" icon="💶" />
+
       <div className="card space-y-4">
-        <p className="text-xs font-bold text-shore-400 uppercase tracking-widest">Zahlungsinformationen</p>
-        <p className="text-sm text-shore-500 -mt-2">
-          Diese Daten erscheinen in der Zahlungsbestätigungs-E-Mail. Der Verwendungszweck ist automatisch der Buchungscode der Anmeldung.
+        <p className="text-sm text-shore-500">
+          Diese Daten erscheinen in der Zahlungsbestätigungs-E-Mail für beide Turniere. Der Verwendungszweck wird automatisch auf den Buchungscode der Anmeldung gesetzt.
         </p>
 
         <SmtpField label="Kontoinhaber / Empfänger" name="payment_empfaenger"
@@ -1450,6 +1473,7 @@ export default function AdminPage() {
           <Route path="hesse/registrations/:id" element={<HesseDetail />} />
           <Route path="waitlist" element={<WaitlistSettings />} />
           {user.role === 'superadmin' && <Route path="smtp" element={<SmtpSettings />} />}
+          {user.role === 'superadmin' && <Route path="payment" element={<PaymentSettings />} />}
           {user.role === 'superadmin' && <Route path="users" element={<UserManagement />} />}
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
