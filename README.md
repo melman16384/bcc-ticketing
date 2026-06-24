@@ -7,13 +7,16 @@ Vollständiges Anmelde- und Check-in-System für den **34. Mahrenholz Beach-Cup 
 - **Zwei Turniere parallel** mit getrennten Anmeldeformularen, Routen und Datentabellen
 - **Mehrstufiges Anmeldeformular** (9 Schritte) für Mahrenholz – Kategorien: King of the Court (männlich / weiblich / mixed), Beach-Fun A & B
 - **Vereinfachtes Anmeldeformular** (3 Schritte) für den Heße Firmencup – Firmen-/Vereinsanmeldung für 4er-Mixed-Teams
-- **Wartelisten-Verwaltung** pro Kategorie (über Admin-Panel steuerbar)
+- **Wartelisten-Verwaltung** pro Kategorie (manuell schaltbar oder automatisch per Teamkapazität)
+- **Teamkapazitäten** pro Kategorie – maximale Teamanzahl konfigurierbar; Warteliste schaltet automatisch bei Erreichen der Grenze
 - **Buchungscode** (`XXXX-XXXX`) pro Anmeldung zur eindeutigen Identifikation
 - **Buchungsübersicht** unter `/buchung/:code` – öffentlich zugänglich, zeigt Status, Teams, Gebühren
 - **Selbst-Stornierung** über die Buchungsübersicht (nur bei `pending` / `waitlist`)
 - **Admin-Panel** mit Dashboard, Filterlisten, Detailansicht für beide Turniere
 - **Zweistufige Bestätigungen** für alle kritischen Aktionen (bestätigen, stornieren, Zahlung, löschen)
-- **E-Mail-Benachrichtigungen**: Anmeldebestätigung, Admin-Benachrichtigung, Zahlungsinfo, QR-Code-Mail, Stornierungsbestätigung
+- **E-Mail-Benachrichtigungen**: Anmeldebestätigung, Admin-Benachrichtigung, Zahlungsinfo, Zahlungserinnerung, QR-Code-Mail, Stornierungsbestätigung
+- **Zahlungserinnerung** per E-Mail – Button in der Admin-Detailansicht für bestätigte Anmeldungen ohne Zahlungseingang
+- **Admin-Notizfeld** pro Anmeldung – internes Freitextfeld, nie für Teilnehmer sichtbar
 - **QR-Code Check-in** mit PIN-Schutz vor Ort
 - **CSV-Export** aller Anmeldungen (je Turnier)
 - **Tägliche automatische Backups** der SQLite-Datenbank (02:00 Uhr, max. 10 Dateien)
@@ -194,31 +197,33 @@ Erreichbar unter `/admin`. Bereiche:
 |-----------------------|------------------------------------------------------------------|
 | Dashboard             | Statistiken für beide Turniere (Gesamt, Status, Umsatz)         |
 | Anmeldungen           | Liste mit Suche, Statusfilter, Check-in-Filter, CSV-Export      |
-| Detailansicht         | Alle Felder, Aktionsblöcke, Statusverlauf                       |
-| Einstellungen         | Wartelisten (Mahrenholz), SMTP, Zahlungsdaten, Check-in-PIN     |
+| Detailansicht         | Alle Felder, Aktionsblöcke, Statusverlauf, Zahlungserinnerung, interne Notiz |
+| Einstellungen         | Wartelisten + Teamkapazitäten (Mahrenholz), SMTP, Zahlungsdaten, Check-in-PIN |
 | Benutzer (Superadmin) | Passwörter ändern                                               |
 
 ## E-Mail-Templates
 
 ### Mahrenholz Beach-Cup
 
-| Typ                    | Auslöser                         | Empfänger   |
-|------------------------|----------------------------------|-------------|
-| Anmeldebestätigung     | Anmeldung eingereicht            | Teilnehmer  |
-| Admin-Benachrichtigung | Anmeldung eingereicht            | Admin       |
-| Zahlungsinformationen  | Manuell (Button im Admin)        | Teilnehmer  |
-| QR-Code-Mail           | Zahlungseingang bestätigt        | Teilnehmer  |
-| Stornierungsbestätigung| Anmeldung storniert              | Teilnehmer  |
+| Typ                    | Auslöser                                   | Empfänger   |
+|------------------------|--------------------------------------------|-------------|
+| Anmeldebestätigung     | Anmeldung eingereicht                      | Teilnehmer  |
+| Admin-Benachrichtigung | Anmeldung eingereicht                      | Admin       |
+| Zahlungsinformationen  | Manuell (Button im Admin)                  | Teilnehmer  |
+| Zahlungserinnerung     | Manuell (Button im Admin, bestätigt + unbezahlt) | Teilnehmer |
+| QR-Code-Mail           | Zahlungseingang bestätigt                  | Teilnehmer  |
+| Stornierungsbestätigung| Anmeldung storniert                        | Teilnehmer  |
 
 ### Heße Immobilien Firmencup
 
-| Typ                    | Auslöser                         | Empfänger   |
-|------------------------|----------------------------------|-------------|
-| Anmeldebestätigung     | Anmeldung eingereicht            | Teilnehmer  |
-| Admin-Benachrichtigung | Anmeldung eingereicht            | Admin       |
-| Zahlungsinformationen  | Admin bestätigt Anmeldung        | Teilnehmer  |
-| QR-Code-Mail           | Zahlungseingang bestätigt        | Teilnehmer  |
-| Stornierungsbestätigung| Anmeldung storniert              | Teilnehmer  |
+| Typ                    | Auslöser                                   | Empfänger   |
+|------------------------|--------------------------------------------|-------------|
+| Anmeldebestätigung     | Anmeldung eingereicht                      | Teilnehmer  |
+| Admin-Benachrichtigung | Anmeldung eingereicht                      | Admin       |
+| Zahlungsinformationen  | Admin bestätigt Anmeldung                  | Teilnehmer  |
+| Zahlungserinnerung     | Manuell (Button im Admin, bestätigt + unbezahlt) | Teilnehmer |
+| QR-Code-Mail           | Zahlungseingang bestätigt                  | Teilnehmer  |
+| Stornierungsbestätigung| Anmeldung storniert                        | Teilnehmer  |
 
 ## Deployment (Produktion)
 

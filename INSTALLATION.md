@@ -393,7 +393,7 @@ Nach dem ersten Start unter `https://meine-domain.de/login` anmelden.
 1. **Einstellungen → SMTP** – E-Mail-Server eintragen und Testmail senden
 2. **Einstellungen → Zahlungsdaten** – IBAN, BIC, Bank, Zahlungsfrist, Stornohinweis eintragen
 3. **Einstellungen → Check-in-PIN** – PIN für das Check-in-Personal setzen
-4. **Einstellungen → Warteliste** – Kategorien nach Bedarf auf Warteliste schalten
+4. **Einstellungen → Warteliste** – Kategorien nach Bedarf manuell auf Warteliste schalten und/oder maximale Teamanzahl pro Kategorie setzen (0 = unbegrenzt)
 5. **Benutzer** – Passwörter der Seed-Benutzer ändern
 
 ### Passwort nach dem ersten Start ändern
