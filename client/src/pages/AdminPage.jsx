@@ -711,6 +711,7 @@ function WaitlistSettings() {
         Object.entries(data).filter(([k]) => k.endsWith('_waitlist')).map(([k, v]) => [k, v === '1'])
       );
       s.registration_open = data.registration_open !== '0';
+      s.hesse_registration_open = data.hesse_registration_open !== '0';
       setSettings(s);
     }
   }, [data]);
@@ -718,6 +719,7 @@ function WaitlistSettings() {
   const save = async () => {
     const payload = { ...settings };
     payload.registration_open = settings.registration_open ? '1' : '0';
+    payload.hesse_registration_open = settings.hesse_registration_open ? '1' : '0';
     await authFetch('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(payload) });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -734,29 +736,39 @@ function WaitlistSettings() {
 
   if (loading || !settings) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
 
-  const regOpen = settings.registration_open;
+  const OPEN_TOGGLES = [
+    { key: 'registration_open',       label: '34. Mahrenholz Beach-Cup', color: 'ocean' },
+    { key: 'hesse_registration_open', label: 'Heße Immobilien Firmencup', color: 'red'   },
+  ];
 
   return (
     <div className="max-w-lg">
       <PageHeader title="Anmeldung & Warteliste" icon="⏳" />
 
       <div className="card mb-4">
-        <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">🔒 Anmeldestatus (Mahrenholz)</p>
-        <div
-          className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer select-none
-            ${regOpen ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}
-          onClick={() => setSettings((s) => ({ ...s, registration_open: !s.registration_open }))}
-        >
-          <div className="flex items-center gap-3">
-            <span>{regOpen ? '✅' : '🔒'}</span>
-            <div>
-              <p className="text-sm font-semibold text-shore-700">Anmeldung {regOpen ? 'geöffnet' : 'geschlossen'}</p>
-              <p className="text-xs text-shore-400 mt-0.5">{regOpen ? 'Neue Anmeldungen werden angenommen' : 'Keine neuen Anmeldungen möglich'}</p>
-            </div>
-          </div>
-          <div className={`toggle ${regOpen ? 'bg-emerald-500' : 'bg-red-400'}`}>
-            <div className={`toggle-thumb ${regOpen ? 'left-6' : 'left-1'}`} />
-          </div>
+        <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">🔒 Anmeldestatus</p>
+        <div className="space-y-2">
+          {OPEN_TOGGLES.map(({ key, label }) => {
+            const open = settings[key];
+            return (
+              <div key={key}
+                className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer select-none
+                  ${open ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}
+                onClick={() => setSettings((s) => ({ ...s, [key]: !s[key] }))}
+              >
+                <div className="flex items-center gap-3">
+                  <span>{open ? '✅' : '🔒'}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-shore-700">{label}</p>
+                    <p className="text-xs text-shore-400 mt-0.5">{open ? 'Anmeldung geöffnet' : 'Anmeldung geschlossen'}</p>
+                  </div>
+                </div>
+                <div className={`toggle ${open ? 'bg-emerald-500' : 'bg-red-400'}`}>
+                  <div className={`toggle-thumb ${open ? 'left-6' : 'left-1'}`} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

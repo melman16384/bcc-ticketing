@@ -35,6 +35,10 @@ router.post('/registrations', async (req, res) => {
     if (!d.firma || !d.vorname || !d.nachname || !d.email || !d.strasse || !d.ort || !d.plz) {
       return res.status(400).json({ error: 'Pflichtfelder fehlen' });
     }
+    const { getSettings } = require('./db');
+    if (getSettings().hesse_registration_open !== '1') {
+      return res.status(409).json({ error: 'Die Anmeldung ist aktuell geschlossen.' });
+    }
     if (!d.mannschaften || d.mannschaften < 1) {
       return res.status(400).json({ error: 'Bitte mindestens eine Mannschaft angeben' });
     }

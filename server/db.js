@@ -130,11 +130,13 @@ db.exec(`
     ('payment_frist', '4 Wochen vor Turnierbeginn'),
     ('payment_storno_hinweis', 'Bei Abmeldung nach dem 15.06.2026 wird die Startgebühr nicht erstattet.'),
     ('checkin_pin', ''),
-    ('registration_open', '1');
+    ('registration_open', '1'),
+    ('hesse_registration_open', '1');
 `);
 
 // Migrate older settings keys
 db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', '1')").run();
+db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('hesse_registration_open', '1')").run();
 
 // Migrate older databases that may be missing columns
 [
