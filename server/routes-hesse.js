@@ -197,7 +197,8 @@ router.get('/checkin/:code', (req, res) => {
 
 router.post('/checkin/:code', (req, res) => {
   const { getSettings } = require('./db');
-  const correctPin = getSettings().checkin_pin || '2005';
+  const correctPin = getSettings().checkin_pin;
+  if (!correctPin) return res.status(503).json({ error: 'Kein Check-in PIN konfiguriert. Bitte Superadmin kontaktieren.' });
   if (!req.body.pin || req.body.pin !== correctPin) return res.status(401).json({ error: 'Falscher PIN' });
   const reg = db.prepare('SELECT * FROM hesse_registrations WHERE booking_code = ?').get(req.params.code.toUpperCase());
   if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });

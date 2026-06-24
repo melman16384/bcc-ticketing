@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import FormWizard from '../components/form/FormWizard';
 
 function WelcomePage({ onStart }) {
-  const [waitlist, setWaitlist] = useState({});
+  const [waitlist, setWaitlist] = useState(null);
 
   useEffect(() => {
-    fetch('/api/waitlist-status').then((r) => r.json()).then(setWaitlist).catch(() => {});
+    fetch('/api/waitlist-status').then((r) => r.json()).then(setWaitlist).catch(() => setWaitlist({}));
   }, []);
 
   const cats = [
@@ -53,7 +53,7 @@ function WelcomePage({ onStart }) {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {cats.map((c) => {
-              const full = waitlist[c.key];
+              const full = waitlist?.[c.key];
               return (
                 <div key={c.key} className={`rounded-2xl border p-4 flex items-center gap-4 bg-white transition
                   ${full ? 'border-shore-200 opacity-70' : 'border-ocean-100 shadow-sm'}`}>
@@ -110,7 +110,12 @@ function WelcomePage({ onStart }) {
 
         {/* CTA */}
         <div className="text-center space-y-3 pb-4">
-          {waitlist.registration_open === false ? (
+          {waitlist === null ? (
+            <div className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-shore-100 text-shore-400 text-sm font-medium">
+              <span className="w-4 h-4 border-2 border-shore-300 border-t-shore-500 rounded-full animate-spin inline-block" />
+              Wird geladen…
+            </div>
+          ) : waitlist.registration_open === false ? (
             <div className="inline-block bg-red-50 border border-red-200 rounded-2xl px-8 py-5 space-y-1">
               <p className="text-2xl">🔒</p>
               <p className="font-bold text-red-700 text-base">Anmeldung geschlossen</p>

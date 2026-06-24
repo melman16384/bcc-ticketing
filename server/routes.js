@@ -251,7 +251,8 @@ router.get('/checkin/:code', (req, res) => {
 // ── CHECKIN: Einchecken mit PIN-Bestätigung (kein Login nötig) ───────────────
 router.post('/checkin/:code', (req, res) => {
   const { getSettings } = require('./db');
-  const correctPin = getSettings().checkin_pin || '2005';
+  const correctPin = getSettings().checkin_pin;
+  if (!correctPin) return res.status(503).json({ error: 'Kein Check-in PIN konfiguriert. Bitte Superadmin kontaktieren.' });
   if (!req.body.pin || req.body.pin !== correctPin) {
     return res.status(401).json({ error: 'Falscher PIN' });
   }
@@ -415,6 +416,18 @@ router.delete('/superadmin/users/:id', auth('superadmin'), (req, res) => {
     return res.status(400).json({ error: 'Sie können sich nicht selbst löschen' });
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── SUPERADMIN: Check-in PIN ──────────────────────────────────────────────────
+router.get('/superadmin/pin', auth('superadmin'), (req, res) => {
+  const s = getSettings();
+  res.json({ checkin_pin: s.checkin_pin || '' });
+});
+
+router.patch('/superadmin/pin', auth('superadmin'), (req, res) => {
+  const pin = String(req.body.checkin_pin || '').trim();
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('checkin_pin', pin);
   res.json({ ok: true });
 });
 

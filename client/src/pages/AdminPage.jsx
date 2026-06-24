@@ -162,6 +162,7 @@ function Sidebar({ onLogout }) {
           <p className="px-3 pb-1 text-xs font-bold text-shore-400 uppercase tracking-widest">System</p>
           <NavLink to="/admin/waitlist" className={mkNavCls('bg-ocean-600')}>⏳ Warteliste</NavLink>
           {user.role === 'superadmin' && <>
+            <NavLink to="/admin/pin" className={mkNavCls('bg-ocean-600')}>🔐 Check-in PIN</NavLink>
             <NavLink to="/admin/smtp" className={mkNavCls('bg-ocean-600')}>✉️ E-Mail / SMTP</NavLink>
             <NavLink to="/admin/payment" className={mkNavCls('bg-ocean-600')}>💶 Zahlungsdaten</NavLink>
             <NavLink to="/admin/users" className={mkNavCls('bg-ocean-600')}>👤 Benutzer</NavLink>
@@ -1002,6 +1003,59 @@ function PasswordRow({ userId, onDone }) {
 }
 
 // ── User Management ───────────────────────────────────────────────────────────
+function PinSettings() {
+  const { data, loading, reload } = useAdminData('/api/superadmin/pin');
+  const [pin, setPin] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { if (data) setPin(data.checkin_pin || ''); }, [data]);
+
+  const save = async () => {
+    await authFetch('/api/superadmin/pin', { method: 'PATCH', body: JSON.stringify({ checkin_pin: pin }) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    reload();
+  };
+
+  if (loading) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
+
+  return (
+    <div className="max-w-md">
+      <PageHeader title="Check-in PIN" icon="🔐" />
+      {!pin && (
+        <div className="mb-4 p-4 rounded-2xl bg-red-50 border border-red-200 flex gap-3">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div>
+            <p className="font-bold text-red-700 text-sm">Kein PIN konfiguriert</p>
+            <p className="text-red-600 text-xs mt-0.5">
+              Check-in ist aktuell für alle blockiert. Bitte PIN festlegen.
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="card space-y-4">
+        <p className="text-sm text-shore-500">
+          Dieser PIN wird beim Check-in-Scanner abgefragt. Gilt für beide Turniere.
+        </p>
+        <div>
+          <label className="form-label">Check-in PIN</label>
+          <input
+            type="password"
+            className="form-input font-mono tracking-widest text-lg"
+            placeholder="PIN festlegen…"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            autoComplete="new-password"
+          />
+        </div>
+        <button className="btn-primary" onClick={save} disabled={!pin.trim()}>
+          {saved ? '✓ Gespeichert' : 'Speichern'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function UserManagement() {
   const { data: users, loading, reload } = useAdminData('/api/superadmin/users');
   const [showForm, setShowForm] = useState(false);
@@ -1511,6 +1565,7 @@ export default function AdminPage() {
           <Route path="hesse/registrations" element={<HesseList />} />
           <Route path="hesse/registrations/:id" element={<HesseDetail />} />
           <Route path="waitlist" element={<WaitlistSettings />} />
+          {user.role === 'superadmin' && <Route path="pin" element={<PinSettings />} />}
           {user.role === 'superadmin' && <Route path="smtp" element={<SmtpSettings />} />}
           {user.role === 'superadmin' && <Route path="payment" element={<PaymentSettings />} />}
           {user.role === 'superadmin' && <Route path="users" element={<UserManagement />} />}
