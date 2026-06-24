@@ -161,6 +161,27 @@ router.post('/admin/registrations/:id/payment', auth('admin'), async (req, res) 
   res.json({ ok: true });
 });
 
+// ── Admin: Zahlungserinnerung ─────────────────────────────────────────────────
+router.post('/admin/registrations/:id/remind-payment', auth('admin'), async (req, res) => {
+  const reg = db.prepare('SELECT * FROM hesse_registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status !== 'confirmed') return res.status(409).json({ error: 'Nur bestätigte Anmeldungen' });
+  if (reg.payment_received_at) return res.status(409).json({ error: 'Zahlung bereits eingegangen' });
+  try {
+    const { sendHessePaymentReminder } = require('./mailer');
+    await sendHessePaymentReminder(reg);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: Notizen ────────────────────────────────────────────────────────────
+router.patch('/admin/registrations/:id/notes', auth('admin'), (req, res) => {
+  const reg = db.prepare('SELECT id FROM hesse_registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  db.prepare('UPDATE hesse_registrations SET admin_notes = ? WHERE id = ?').run(req.body.notes ?? null, req.params.id);
+  res.json({ ok: true });
+});
+
 // ── Admin: Löschen (Superadmin) ───────────────────────────────────────────────
 router.delete('/admin/registrations/:id', auth('superadmin'), (req, res) => {
   const reg = db.prepare('SELECT id FROM hesse_registrations WHERE id = ?').get(req.params.id);

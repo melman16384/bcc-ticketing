@@ -14,7 +14,7 @@ seedUsers();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://ticketing.luwilab.work';
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://ticketing.cux-beach.de';
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));

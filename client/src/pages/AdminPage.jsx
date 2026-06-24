@@ -171,7 +171,7 @@ function Sidebar({ onLogout }) {
           <a href="/checkin" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-shore-600 hover:bg-shore-100 hover:text-shore-800 transition">
             🎟️ Check-in Scanner
           </a>
-          <a href="/" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-shore-600 hover:bg-shore-100 hover:text-shore-800 transition">
+<a href="/" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-shore-600 hover:bg-shore-100 hover:text-shore-800 transition">
             ← Turnierwahl
           </a>
         </div>
@@ -412,8 +412,26 @@ function RegistrationDetail() {
   const [confirmStep, setConfirmStep] = useState(0);
   const [cancelStep, setCancelStep] = useState(0);
   const [paymentStep, setPaymentStep] = useState(0);
+  const [notes, setNotes] = useState('');
+  const [notesSaved, setNotesSaved] = useState(false);
+
+  useEffect(() => { if (reg) setNotes(reg.admin_notes || ''); }, [reg]);
 
   const flash = (text, type = 'ok') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 5000); };
+
+  const saveNotes = async () => {
+    await authFetch(`/api/admin/registrations/${id}/notes`, { method: 'PATCH', body: JSON.stringify({ notes }) });
+    setNotesSaved(true);
+    setTimeout(() => setNotesSaved(false), 2000);
+  };
+
+  const sendReminder = async () => {
+    setSaving(true);
+    const r = await authFetch(`/api/admin/registrations/${id}/remind-payment`, { method: 'POST', body: '{}' });
+    const j = await r.json();
+    r.ok ? flash('📧 Zahlungserinnerung gesendet.') : flash(j.error || 'Fehler', 'err');
+    setSaving(false);
+  };
 
   const setStatus = async (status) => {
     setSaving(true);
@@ -506,32 +524,43 @@ function RegistrationDetail() {
                   <p className="text-ocean-600 text-xs mt-1">QR-Code-Mail wurde gesendet.</p>
                 </div>
               ) : (
-                <div className={`card ${paymentStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-ocean-200 bg-ocean-50'}`}>
-                  {paymentStep === 0 ? (
-                    <>
-                      <p className="font-bold text-ocean-800 mb-1 text-sm">💰 Zahlung bestätigen</p>
-                      <p className="text-ocean-600 text-xs mb-3 leading-relaxed">
-                        Markiert den Zahlungseingang und sendet den QR-Code für den Check-in per E-Mail.
-                      </p>
-                      <button className="btn-primary w-full justify-center text-sm" onClick={doPayment} disabled={saving}>
-                        Zahlung eingegangen bestätigen
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Zahlung wirklich bestätigen?</p>
-                      <p className="text-orange-700 text-xs mb-3 leading-relaxed">
-                        Der QR-Code wird <strong>sofort per E-Mail</strong> an den Anmelder gesendet.
-                      </p>
-                      <div className="flex gap-2">
-                        <button className="btn-primary flex-1 justify-center text-sm" onClick={doPayment} disabled={saving}>
-                          Ja, bestätigen
+                <>
+                  <div className={`card ${paymentStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-ocean-200 bg-ocean-50'}`}>
+                    {paymentStep === 0 ? (
+                      <>
+                        <p className="font-bold text-ocean-800 mb-1 text-sm">💰 Zahlung bestätigen</p>
+                        <p className="text-ocean-600 text-xs mb-3 leading-relaxed">
+                          Markiert den Zahlungseingang und sendet den QR-Code für den Check-in per E-Mail.
+                        </p>
+                        <button className="btn-primary w-full justify-center text-sm" onClick={doPayment} disabled={saving}>
+                          Zahlung eingegangen bestätigen
                         </button>
-                        <button className="btn-secondary text-sm" onClick={() => setPaymentStep(0)}>Abbrechen</button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Zahlung wirklich bestätigen?</p>
+                        <p className="text-orange-700 text-xs mb-3 leading-relaxed">
+                          Der QR-Code wird <strong>sofort per E-Mail</strong> an den Anmelder gesendet.
+                        </p>
+                        <div className="flex gap-2">
+                          <button className="btn-primary flex-1 justify-center text-sm" onClick={doPayment} disabled={saving}>
+                            Ja, bestätigen
+                          </button>
+                          <button className="btn-secondary text-sm" onClick={() => setPaymentStep(0)}>Abbrechen</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="card border-amber-200 bg-amber-50">
+                    <p className="font-bold text-amber-800 mb-1 text-sm">📧 Zahlungserinnerung</p>
+                    <p className="text-amber-700 text-xs mb-3 leading-relaxed">
+                      Erneut Zahlungsinfos per E-Mail senden.
+                    </p>
+                    <button className="btn-secondary w-full justify-center text-sm text-amber-700 border-amber-300 hover:bg-amber-100" onClick={sendReminder} disabled={saving}>
+                      Erinnerung senden
+                    </button>
+                  </div>
+                </>
               )}
 
               {/* Check-in Status */}
@@ -694,6 +723,19 @@ function RegistrationDetail() {
             <DetailField label="Zahlung bestätigt" value={reg.payment_received_at?.slice(0, 16) || null} />
             <DetailField label="Eingecheckt" value={reg.checked_in_at?.slice(0, 16) || null} />
           </DetailSection>
+          <div className="mt-5">
+            <p className="section-title">📝 Interne Notizen</p>
+            <textarea
+              className="form-input text-sm min-h-[80px] resize-y"
+              placeholder="Interne Notizen (nur für Admins sichtbar)…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveNotes}
+            />
+            <button className="mt-1.5 text-xs text-shore-400 hover:text-shore-600" onClick={saveNotes}>
+              {notesSaved ? '✓ Gespeichert' : 'Speichern'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -713,6 +755,9 @@ function WaitlistSettings() {
       );
       s.registration_open = data.registration_open !== '0';
       s.hesse_registration_open = data.hesse_registration_open !== '0';
+      ['kotc_maennlich_max','kotc_weiblich_max','kotc_mixed_max','beach_fun_a_max','beach_fun_b_max'].forEach((k) => {
+        s[k] = parseInt(data[k] || '0');
+      });
       setSettings(s);
     }
   }, [data]);
@@ -726,11 +771,11 @@ function WaitlistSettings() {
   };
 
   const CATS = {
-    kotc_maennlich_waitlist: { label: 'King of the Court männlich', icon: '🏐' },
-    kotc_weiblich_waitlist:  { label: 'King of the Court weiblich', icon: '🏐' },
-    kotc_mixed_waitlist:     { label: 'King of the Court mixed',    icon: '🏐' },
-    beach_fun_a_waitlist:    { label: 'Beach-Fun A',                icon: '🏖️' },
-    beach_fun_b_waitlist:    { label: 'Beach-Fun B',                icon: '🏖️' },
+    kotc_maennlich_waitlist: { label: 'King of the Court männlich', icon: '🏐', maxKey: 'kotc_maennlich_max' },
+    kotc_weiblich_waitlist:  { label: 'King of the Court weiblich', icon: '🏐', maxKey: 'kotc_weiblich_max'  },
+    kotc_mixed_waitlist:     { label: 'King of the Court mixed',    icon: '🏐', maxKey: 'kotc_mixed_max'     },
+    beach_fun_a_waitlist:    { label: 'Beach-Fun A',                icon: '🏖️', maxKey: 'beach_fun_a_max'  },
+    beach_fun_b_waitlist:    { label: 'Beach-Fun B',                icon: '🏖️', maxKey: 'beach_fun_b_max'  },
   };
 
   if (loading || !settings) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
@@ -776,23 +821,35 @@ function WaitlistSettings() {
         <p className="text-sm text-shore-500 mb-4">
           Kategorien auf Warteliste — neue Anmeldungen werden automatisch als <em>Warteliste</em> markiert.
         </p>
-        <div className="space-y-2">
-          {Object.entries(CATS).map(([key, { label, icon }]) => {
+        <div className="space-y-3">
+          {Object.entries(CATS).map(([key, { label, icon, maxKey }]) => {
             const active = settings[key] || false;
+            const max = settings[maxKey] ?? 0;
             return (
-              <div key={key}
-                className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer select-none
-                  ${active ? 'border-sand-300 bg-sand-50' : 'border-shore-200 hover:bg-shore-50'}`}
-                onClick={() => setSettings((s) => ({ ...s, [key]: !s[key] }))}>
-                <div className="flex items-center gap-3">
-                  <span>{icon}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-shore-700">{label}</p>
-                    {active && <p className="text-xs text-sand-600 mt-0.5">⏳ Warteliste aktiv</p>}
+              <div key={key} className={`rounded-xl border transition ${active ? 'border-sand-300 bg-sand-50' : 'border-shore-200'}`}>
+                <div className="flex items-center justify-between p-3.5 cursor-pointer select-none"
+                  onClick={() => setSettings((s) => ({ ...s, [key]: !s[key] }))}>
+                  <div className="flex items-center gap-3">
+                    <span>{icon}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-shore-700">{label}</p>
+                      {active && <p className="text-xs text-sand-600 mt-0.5">⏳ Warteliste aktiv</p>}
+                    </div>
+                  </div>
+                  <div className={`toggle ${active ? 'bg-sand-400' : 'bg-shore-300'}`}>
+                    <div className={`toggle-thumb ${active ? 'left-6' : 'left-1'}`} />
                   </div>
                 </div>
-                <div className={`toggle ${active ? 'bg-sand-400' : 'bg-shore-300'}`}>
-                  <div className={`toggle-thumb ${active ? 'left-6' : 'left-1'}`} />
+                <div className="px-3.5 pb-3 flex items-center gap-2 border-t border-shore-100 pt-2.5">
+                  <label className="text-xs text-shore-500 shrink-0">Max. Teams (0 = unbegrenzt):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input py-1 text-xs w-20"
+                    value={max}
+                    onChange={(e) => setSettings((s) => ({ ...s, [maxKey]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 </div>
               </div>
             );
@@ -1337,8 +1394,26 @@ function HesseDetail() {
   const [confirmStep, setConfirmStep] = useState(0);
   const [cancelStep, setCancelStep]   = useState(0);
   const [paymentStep, setPaymentStep] = useState(0);
+  const [hesseNotes, setHesseNotes]   = useState('');
+  const [hesseNotesSaved, setHesseNotesSaved] = useState(false);
+
+  useEffect(() => { if (reg) setHesseNotes(reg.admin_notes || ''); }, [reg]);
 
   const flash = (text, type = 'ok') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 5000); };
+
+  const saveHesseNotes = async () => {
+    await authFetch(`/api/hesse/admin/registrations/${id}/notes`, { method: 'PATCH', body: JSON.stringify({ notes: hesseNotes }) });
+    setHesseNotesSaved(true);
+    setTimeout(() => setHesseNotesSaved(false), 2000);
+  };
+
+  const sendHesseReminder = async () => {
+    setSaving(true);
+    const r = await authFetch(`/api/hesse/admin/registrations/${id}/remind-payment`, { method: 'POST', body: '{}' });
+    const j = await r.json();
+    r.ok ? flash('📧 Zahlungserinnerung gesendet.') : flash(j.error || 'Fehler', 'err');
+    setSaving(false);
+  };
 
   const doPayment = async () => {
     if (paymentStep === 0) { setPaymentStep(1); return; }
@@ -1407,30 +1482,39 @@ function HesseDetail() {
                   <p className="text-ocean-600 text-xs mt-1">QR-Code-Mail wurde gesendet.</p>
                 </div>
               ) : (
-                <div className={`card ${paymentStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-ocean-200 bg-ocean-50'}`}>
-                  {paymentStep === 0 ? (
-                    <>
-                      <p className="font-bold text-ocean-800 mb-1 text-sm">💰 Zahlung bestätigen</p>
-                      <p className="text-ocean-600 text-xs mb-3 leading-relaxed">
-                        Markiert den Zahlungseingang und sendet den QR-Code für den Check-in per E-Mail.
-                      </p>
-                      <button className="btn-primary w-full justify-center text-sm" onClick={doPayment} disabled={saving}>
-                        Zahlung eingegangen bestätigen
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Zahlung wirklich bestätigen?</p>
-                      <p className="text-orange-700 text-xs mb-3 leading-relaxed">
-                        Der QR-Code wird <strong>sofort per E-Mail</strong> an den Anmelder gesendet.
-                      </p>
-                      <div className="flex gap-2">
-                        <button className="btn-primary flex-1 justify-center text-sm" onClick={doPayment} disabled={saving}>Ja, bestätigen</button>
-                        <button className="btn-secondary text-sm" onClick={() => setPaymentStep(0)}>Abbrechen</button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <>
+                  <div className={`card ${paymentStep === 1 ? 'border-orange-300 bg-orange-50' : 'border-ocean-200 bg-ocean-50'}`}>
+                    {paymentStep === 0 ? (
+                      <>
+                        <p className="font-bold text-ocean-800 mb-1 text-sm">💰 Zahlung bestätigen</p>
+                        <p className="text-ocean-600 text-xs mb-3 leading-relaxed">
+                          Markiert den Zahlungseingang und sendet den QR-Code für den Check-in per E-Mail.
+                        </p>
+                        <button className="btn-primary w-full justify-center text-sm" onClick={doPayment} disabled={saving}>
+                          Zahlung eingegangen bestätigen
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold text-orange-800 mb-1 text-sm">⚠️ Zahlung wirklich bestätigen?</p>
+                        <p className="text-orange-700 text-xs mb-3 leading-relaxed">
+                          Der QR-Code wird <strong>sofort per E-Mail</strong> an den Anmelder gesendet.
+                        </p>
+                        <div className="flex gap-2">
+                          <button className="btn-primary flex-1 justify-center text-sm" onClick={doPayment} disabled={saving}>Ja, bestätigen</button>
+                          <button className="btn-secondary text-sm" onClick={() => setPaymentStep(0)}>Abbrechen</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="card border-amber-200 bg-amber-50">
+                    <p className="font-bold text-amber-800 mb-1 text-sm">📧 Zahlungserinnerung</p>
+                    <p className="text-amber-700 text-xs mb-3 leading-relaxed">Erneut Zahlungsinfos per E-Mail senden.</p>
+                    <button className="btn-secondary w-full justify-center text-sm text-amber-700 border-amber-300 hover:bg-amber-100" onClick={sendHesseReminder} disabled={saving}>
+                      Erinnerung senden
+                    </button>
+                  </div>
+                </>
               )}
 
               {reg.checked_in_at && (
@@ -1541,6 +1625,19 @@ function HesseDetail() {
             <DetailField label="Zahlung bestätigt" value={reg.payment_received_at?.slice(0, 16) || null} />
             <DetailField label="Eingecheckt"       value={reg.checked_in_at?.slice(0, 16) || null} />
           </DetailSection>
+          <div className="mt-5">
+            <p className="section-title">📝 Interne Notizen</p>
+            <textarea
+              className="form-input text-sm min-h-[80px] resize-y"
+              placeholder="Interne Notizen (nur für Admins sichtbar)…"
+              value={hesseNotes}
+              onChange={(e) => setHesseNotes(e.target.value)}
+              onBlur={saveHesseNotes}
+            />
+            <button className="mt-1.5 text-xs text-shore-400 hover:text-shore-600" onClick={saveHesseNotes}>
+              {hesseNotesSaved ? '✓ Gespeichert' : 'Speichern'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

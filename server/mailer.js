@@ -100,7 +100,7 @@ function wrap(content) {
 </body></html>`;
 }
 
-const BASE_URL = process.env.BASE_URL || 'https://ticketing.luwilab.work';
+const BASE_URL = process.env.BASE_URL || 'https://ticketing.cux-beach.de';
 
 function stornoBox(bookingCode) {
   const url = `${BASE_URL}/buchung/${bookingCode}`;
@@ -335,6 +335,51 @@ async function sendPaymentInfo(reg) {
   `));
 }
 
+// ── E-Mail 3b: Zahlungserinnerung ────────────────────────────────────────────
+async function sendPaymentReminder(reg) {
+  const p = getPayment();
+  const subject = `Erinnerung: Zahlung ausstehend – Mahrenholz Beach-Cup 2026 [${reg.booking_code || reg.id}]`;
+
+  const payRows = [
+    ['Empfänger',       p.empfaenger],
+    ['IBAN',            `<span style="font-family:Courier New,monospace;letter-spacing:.05em">${p.iban}</span>`],
+    ['BIC',             `<span style="font-family:Courier New,monospace">${p.bic}</span>`],
+    p.bank ? ['Bank', p.bank] : null,
+    ['Betrag',          `<strong style="font-size:15px;color:${COLORS.ocean2}">${fmt(reg.gebuehr_gesamt)}</strong>`],
+    ['Verwendungszweck', `<strong style="font-family:Courier New,monospace;letter-spacing:.08em;color:${COLORS.ocean2}">${reg.booking_code || reg.id}</strong>`],
+    ['Zahlungsfrist',   p.frist],
+  ].filter(Boolean);
+
+  const stornoNote = p.storno_hinweis
+    ? `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 0">
+        <tr><td style="background:#fff7ed;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e">
+          ${p.storno_hinweis}
+        </td></tr>
+      </table>`
+    : '';
+
+  await send(reg.email, subject, wrap(`
+    <h2 style="margin:0 0 4px;font-size:22px;color:${COLORS.ocean2}">Zahlungserinnerung</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:${COLORS.muted}">34. Mahrenholz Beach-Cup 2026 · Beachsportclub Cuxhaven e.V.</p>
+
+    <p style="margin:0 0 8px">Guten Tag ${reg.vorname} ${reg.nachname},</p>
+    <p style="margin:0 0 16px">wir möchten Sie freundlich daran erinnern, dass die Startgebühr für Ihre bestätigte Anmeldung noch aussteht. Bitte überweisen Sie den Betrag bis zur angegebenen Frist.</p>
+
+    ${bookingBadge(reg.booking_code)}
+
+    ${sectionHead('Zahlungsinformationen')}
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLORS.light};border:1px solid ${COLORS.border};border-radius:8px">
+      <tr><td style="padding:16px">
+        ${kv(payRows)}
+      </td></tr>
+    </table>
+
+    ${stornoNote}
+
+    <p style="margin:24px 0 0;font-size:14px">Mit sportlichen Grüßen<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Mahrenholz Beach-Cup</span></p>
+  `));
+}
+
 // ── E-Mail 4: Stornierungsbestätigung ─────────────────────────────────────────
 async function sendCancellationEmail(reg) {
   const subject = `Stornierungsbestätigung – Mahrenholz Beach-Cup 2026 [${reg.booking_code || reg.id}]`;
@@ -370,7 +415,7 @@ async function sendCancellationEmail(reg) {
 
 // ── E-Mail 5: QR-Code nach Zahlungseingang ────────────────────────────────────
 async function sendQrCodeEmail(reg) {
-  const checkinUrl = `https://ticketing.luwilab.work/checkin?code=${reg.booking_code}`;
+  const checkinUrl = `${BASE_URL}/checkin?code=${reg.booking_code}`;
   const qrBuffer = await QRCode.toBuffer(checkinUrl, {
     width: 300,
     margin: 2,
@@ -431,8 +476,8 @@ async function sendQrCodeEmail(reg) {
   console.log(`[Mailer] ✓ QR-Code-Mail → ${reg.email}`);
 }
 
-module.exports = { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo, sendCancellationEmail, sendQrCodeEmail,
-  sendHesseConfirmation, sendHesseAdminNotification, sendHessePaymentInfo, sendHesseCancellation, sendHesseQrCode };
+module.exports = { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo, sendPaymentReminder, sendCancellationEmail, sendQrCodeEmail,
+  sendHesseConfirmation, sendHesseAdminNotification, sendHessePaymentInfo, sendHessePaymentReminder, sendHesseCancellation, sendHesseQrCode };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Heße Immobilien Cup E-Mails
@@ -589,6 +634,32 @@ async function sendHessePaymentInfo(reg) {
   console.log(`[Mailer/Hesse] ✓ Zahlungsinfo → ${reg.email}`);
 }
 
+async function sendHessePaymentReminder(reg) {
+  const p = getPayment();
+  const subject = `Erinnerung: Zahlung ausstehend – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
+  const html = hesseWrap(`
+    <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Zahlungserinnerung</h2>
+    <p style="margin:0 0 20px;color:${COLORS.muted}">Ihre Anmeldung ist bestätigt. Bitte überweisen Sie die Startgebühr bis zur genannten Frist.</p>
+    ${hesseBookingBadge(reg.booking_code)}
+    ${hesseKv([
+      ['Empfänger', p.empfaenger],
+      ['IBAN', p.iban],
+      ['BIC', p.bic],
+      ['Bank', p.bank],
+      ['Betrag', `${String(reg.gebuehr_gesamt).replace('.', ',')} €`],
+      ['Verwendungszweck', reg.booking_code],
+      ['Zahlungsfrist', p.frist],
+    ])}
+    ${p.storno_hinweis ? `<p style="margin:16px 0 0;font-size:13px;color:${COLORS.muted}">${p.storno_hinweis}</p>` : ''}
+    <p style="margin:16px 0 0;font-size:13px">Falls Sie bereits überwiesen haben, bitten wir Sie, diese Erinnerung zu ignorieren.</p>
+    <p style="margin:16px 0 0;font-size:14px">Mit sportlichen Grüßen<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Heße Immobilien Cup 2026</span></p>
+  `);
+  const t = buildTransporter();
+  if (!t) { console.log(`[Mailer/Hesse] SMTP nicht konfiguriert — Zahlungserinnerung → ${reg.email}`); return; }
+  await t.sendMail({ from: getFrom(), to: reg.email, subject, html });
+  console.log(`[Mailer/Hesse] ✓ Zahlungserinnerung → ${reg.email}`);
+}
+
 async function sendHesseCancellation(reg) {
   const subject = `Stornierungsbestätigung – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
   const html = hesseWrap(`
@@ -605,7 +676,7 @@ async function sendHesseCancellation(reg) {
 
 async function sendHesseQrCode(reg) {
   const subject = `Ihr QR-Code für den Check-in – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
-  const checkinUrl = `https://ticketing.luwilab.work/checkin?code=${reg.booking_code}&cup=hesse`;
+  const checkinUrl = `${BASE_URL}/checkin?code=${reg.booking_code}&cup=hesse`;
   const qrBuffer = await QRCode.toBuffer(checkinUrl, { width: 300, margin: 2, color: { dark: HESSE_COLOR, light: '#ffffff' } });
   const html = hesseWrap(`
     <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Ihr Check-in QR-Code</h2>

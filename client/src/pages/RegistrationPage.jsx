@@ -53,7 +53,7 @@ function WelcomePage({ onStart }) {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {cats.map((c) => {
-              const full = waitlist?.[c.key];
+              const full = waitlist?.[c.key + '_waitlist'];
               return (
                 <div key={c.key} className={`rounded-2xl border p-4 flex items-center gap-4 bg-white transition
                   ${full ? 'border-shore-200 opacity-70' : 'border-ocean-100 shadow-sm'}`}>
@@ -64,7 +64,15 @@ function WelcomePage({ onStart }) {
                   </div>
                   {full
                     ? <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1 shrink-0">Warteliste</span>
-                    : <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 shrink-0">Frei ✓</span>
+                    : (() => {
+                        const max = waitlist?.[c.key + '_max'];
+                        const count = waitlist?.[c.key + '_count'];
+                        if (max > 0 && count != null) {
+                          const rem = max - count;
+                          return <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 shrink-0">{rem} frei</span>;
+                        }
+                        return <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 shrink-0">Frei ✓</span>;
+                      })()
                   }
                 </div>
               );

@@ -137,6 +137,9 @@ db.exec(`
 // Migrate older settings keys
 db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', '1')").run();
 db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('hesse_registration_open', '1')").run();
+[
+  'kotc_maennlich_max', 'kotc_weiblich_max', 'kotc_mixed_max', 'beach_fun_a_max', 'beach_fun_b_max',
+].forEach((k) => db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, '0')").run(k));
 
 // Migrate older databases that may be missing columns
 [
@@ -145,6 +148,8 @@ db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('hesse_registrat
   `ALTER TABLE registrations ADD COLUMN payment_received_at TEXT`,
   `ALTER TABLE registrations ADD COLUMN checked_in_at TEXT`,
   `ALTER TABLE registrations ADD COLUMN checkin_token TEXT`,
+  `ALTER TABLE registrations ADD COLUMN admin_notes TEXT`,
+  `ALTER TABLE hesse_registrations ADD COLUMN admin_notes TEXT`,
 ].forEach((sql) => { try { db.exec(sql); } catch { /* already exists */ } });
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_booking_code ON registrations(booking_code)`); } catch { /* ok */ }
 try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_token ON registrations(checkin_token)`); } catch { /* ok */ }

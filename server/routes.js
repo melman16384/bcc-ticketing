@@ -63,9 +63,16 @@ function calcFees(d) {
 
 function isWaitlist(data) {
   const map = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value]));
-  if (map.kotc_maennlich_waitlist === '1' && (data.kotc_maennlich || 0) > 0) return true;
-  if (map.beach_fun_a_waitlist === '1' && (data.beach_fun_a || 0) > 0) return true;
-  if (map.beach_fun_b_waitlist === '1' && (data.beach_fun_b || 0) > 0) return true;
+  const cats = ['kotc_maennlich', 'kotc_weiblich', 'kotc_mixed', 'beach_fun_a', 'beach_fun_b'];
+  for (const cat of cats) {
+    if ((data[cat] || 0) === 0) continue;
+    if (map[`${cat}_waitlist`] === '1') return true;
+    const max = parseInt(map[`${cat}_max`] || '0');
+    if (max > 0) {
+      const current = db.prepare(`SELECT COALESCE(SUM(${cat}), 0) as n FROM registrations WHERE status != 'cancelled'`).get().n;
+      if (current >= max) return true;
+    }
+  }
   return false;
 }
 
@@ -87,9 +94,25 @@ router.get('/auth/me', auth('admin'), (req, res) => res.json(req.user));
 
 // ── PUBLIC: Wartelisten-Status ────────────────────────────────────────────────
 router.get('/waitlist-status', (req, res) => {
-  const map = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value === '1']));
-  res.json(map);
+  const raw = Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((s) => [s.key, s.value]));
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    result[k] = k.endsWith('_max') ? parseInt(v || '0') : v === '1';
+  }
+  const cats = ['kotc_maennlich', 'kotc_weiblich', 'kotc_mixed', 'beach_fun_a', 'beach_fun_b'];
+  for (const cat of cats) {
+    const max = result[`${cat}_max`] || 0;
+    if (max > 0) {
+      const count = db.prepare(`SELECT COALESCE(SUM(${cat}), 0) as n FROM registrations WHERE status != 'cancelled'`).get().n;
+      result[`${cat}_count`] = count;
+      if (count >= max) result[`${cat}_waitlist`] = true;
+    } else {
+      result[`${cat}_count`] = null;
+    }
+  }
+  res.json(result);
 });
+
 
 // ── PUBLIC: Anmeldung einreichen ──────────────────────────────────────────────
 router.post('/registrations', async (req, res) => {
@@ -309,10 +332,14 @@ router.get('/admin/settings', auth('admin'), (req, res) => {
 });
 
 router.patch('/admin/settings', auth('admin'), (req, res) => {
-  const allowed = ['kotc_maennlich_waitlist','kotc_weiblich_waitlist','kotc_mixed_waitlist','beach_fun_a_waitlist','beach_fun_b_waitlist','registration_open','hesse_registration_open'];
+  const boolKeys = ['kotc_maennlich_waitlist','kotc_weiblich_waitlist','kotc_mixed_waitlist','beach_fun_a_waitlist','beach_fun_b_waitlist','registration_open','hesse_registration_open'];
+  const numKeys  = ['kotc_maennlich_max','kotc_weiblich_max','kotc_mixed_max','beach_fun_a_max','beach_fun_b_max'];
   const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-  for (const key of allowed) {
+  for (const key of boolKeys) {
     if (key in req.body) stmt.run(key, req.body[key] ? '1' : '0');
+  }
+  for (const key of numKeys) {
+    if (key in req.body) stmt.run(key, String(Math.max(0, parseInt(req.body[key]) || 0)));
   }
   res.json({ ok: true });
 });
@@ -458,6 +485,27 @@ router.get('/buchung/:code', (req, res) => {
     gebuehr_gesamt FROM hesse_registrations WHERE booking_code = ?`).get(code);
   if (h) return res.json({ ...h, cup: 'hesse' });
   res.status(404).json({ error: 'Buchung nicht gefunden' });
+});
+
+// ── ADMIN: Zahlungserinnerung senden ─────────────────────────────────────────
+router.post('/admin/registrations/:id/remind-payment', auth('admin'), async (req, res) => {
+  const reg = db.prepare('SELECT * FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  if (reg.status !== 'confirmed') return res.status(409).json({ error: 'Nur bestätigte Anmeldungen' });
+  if (reg.payment_received_at) return res.status(409).json({ error: 'Zahlung bereits eingegangen' });
+  try {
+    const { sendPaymentReminder } = require('./mailer');
+    await sendPaymentReminder(reg);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ADMIN: Admin-Notizen speichern ────────────────────────────────────────────
+router.patch('/admin/registrations/:id/notes', auth('admin'), (req, res) => {
+  const reg = db.prepare('SELECT id FROM registrations WHERE id = ?').get(req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Nicht gefunden' });
+  db.prepare('UPDATE registrations SET admin_notes = ? WHERE id = ?').run(req.body.notes ?? null, req.params.id);
+  res.json({ ok: true });
 });
 
 router.post('/buchung/:code/cancel', async (req, res) => {

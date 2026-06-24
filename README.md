@@ -111,7 +111,7 @@ cp .env.example .env
 | Variable                   | Bedeutung                              | Standard                       |
 |----------------------------|----------------------------------------|--------------------------------|
 | `JWT_SECRET`               | Geheimer Schlüssel für JWT-Token       | –  (Pflicht)                   |
-| `ALLOWED_ORIGIN`           | Erlaubte CORS-Herkunft                 | `https://ticketing.luwilab.work` |
+| `ALLOWED_ORIGIN`           | Erlaubte CORS-Herkunft                 | `https://ticketing.cux-beach.de` |
 | `SEED_SUPERADMIN_EMAIL`    | E-Mail des Superadmins                 | `superadmin@bcc-ticketing.de`  |
 | `SEED_SUPERADMIN_PASSWORD` | Passwort des Superadmins               | `changeme`                     |
 | `SEED_ADMIN_EMAIL`         | E-Mail des Admins                      | `admin@bcc-ticketing.de`       |
