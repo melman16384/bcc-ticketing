@@ -375,8 +375,8 @@ function DeleteRegistration({ id, onDeleted, apiPrefix = '/api/admin' }) {
   if (step === 0) {
     return (
       <div className="card-sm border-red-200">
-        <button className="text-red-400 hover:text-red-600 text-xs font-medium transition" onClick={() => setStep(1)}>
-          🗑 Buchung unwiderruflich löschen
+        <button className="text-red-400 hover:text-red-600 text-sm font-medium transition" onClick={() => setStep(1)}>
+          Buchung unwiderruflich löschen
         </button>
       </div>
     );
