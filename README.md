@@ -78,6 +78,8 @@ bcc-ticketing/
 
 ## Installation & Setup
 
+> Detaillierte Schritt-für-Schritt-Anleitung: **[INSTALLATION.md](INSTALLATION.md)**
+
 ### Voraussetzungen
 
 - Node.js ≥ 18
