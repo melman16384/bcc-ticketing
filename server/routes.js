@@ -91,6 +91,10 @@ router.post('/registrations', async (req, res) => {
     if (!d.vorname || !d.nachname || !d.email || !d.strasse || !d.ort || !d.plz || !d.telefon) {
       return res.status(400).json({ error: 'Pflichtfelder fehlen' });
     }
+    const { getSettings } = require('./db');
+    if (getSettings().registration_open !== '1') {
+      return res.status(409).json({ error: 'Die Anmeldung ist aktuell geschlossen.' });
+    }
 
     const fees = calcFees(d);
     const waitlist = isWaitlist(d) ? 1 : 0;

@@ -41,8 +41,9 @@ export default function HesseFormWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Fehler');
+      let json;
+      try { json = await r.json(); } catch { json = {}; }
+      if (!r.ok) throw new Error(json.error || 'Serverfehler – bitte erneut versuchen');
       setResult(json);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {

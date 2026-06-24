@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, useNavigate, useParams, NavLink, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams, useLocation, NavLink, Navigate } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const getToken = () => localStorage.getItem('bcc_token') || '';
@@ -259,12 +259,15 @@ function Dashboard() {
 // ── Registration List ─────────────────────────────────────────────────────────
 function RegistrationList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get('checked_in') === 'true') return 'checked_in';
-    return p.get('status') || '';
-  });
+  const [statusFilter, setStatusFilter] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get('checked_in') === 'true') setStatusFilter('checked_in');
+    else setStatusFilter(p.get('status') || '');
+  }, [location.search]);
   const url = `/api/admin/registrations?${new URLSearchParams({
     ...(statusFilter === 'checked_in' ? { checked_in: 'true' } : statusFilter ? { status: statusFilter } : {}),
     ...(search && { search }),
@@ -465,7 +468,7 @@ function RegistrationDetail() {
 
   return (
     <div>
-      <button className="btn-secondary mb-4 text-sm" onClick={() => navigate('/admin/registrations')}>← Zurück</button>
+      <button className="btn-secondary mb-4 text-sm" onClick={() => navigate(-1)}>← Zurück</button>
 
       {msg && (
         <div className={`mb-4 p-3 rounded-xl text-sm font-medium border ${msg.type === 'err' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
@@ -703,13 +706,19 @@ function WaitlistSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (data) setSettings(Object.fromEntries(
-      Object.entries(data).filter(([k]) => k.endsWith('_waitlist')).map(([k, v]) => [k, v === '1'])
-    ));
+    if (data) {
+      const s = Object.fromEntries(
+        Object.entries(data).filter(([k]) => k.endsWith('_waitlist')).map(([k, v]) => [k, v === '1'])
+      );
+      s.registration_open = data.registration_open !== '0';
+      setSettings(s);
+    }
   }, [data]);
 
   const save = async () => {
-    await authFetch('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(settings) });
+    const payload = { ...settings };
+    payload.registration_open = settings.registration_open ? '1' : '0';
+    await authFetch('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(payload) });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
     reload();
@@ -725,12 +734,36 @@ function WaitlistSettings() {
 
   if (loading || !settings) return <div className="text-shore-400 py-10 text-center">Lade…</div>;
 
+  const regOpen = settings.registration_open;
+
   return (
     <div className="max-w-lg">
-      <PageHeader title="Warteliste" icon="⏳" />
+      <PageHeader title="Anmeldung & Warteliste" icon="⏳" />
+
+      <div className="card mb-4">
+        <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">🔒 Anmeldestatus (Mahrenholz)</p>
+        <div
+          className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer select-none
+            ${regOpen ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}
+          onClick={() => setSettings((s) => ({ ...s, registration_open: !s.registration_open }))}
+        >
+          <div className="flex items-center gap-3">
+            <span>{regOpen ? '✅' : '🔒'}</span>
+            <div>
+              <p className="text-sm font-semibold text-shore-700">Anmeldung {regOpen ? 'geöffnet' : 'geschlossen'}</p>
+              <p className="text-xs text-shore-400 mt-0.5">{regOpen ? 'Neue Anmeldungen werden angenommen' : 'Keine neuen Anmeldungen möglich'}</p>
+            </div>
+          </div>
+          <div className={`toggle ${regOpen ? 'bg-emerald-500' : 'bg-red-400'}`}>
+            <div className={`toggle-thumb ${regOpen ? 'left-6' : 'left-1'}`} />
+          </div>
+        </div>
+      </div>
+
       <div className="card">
+        <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">⏳ Warteliste nach Kategorie</p>
         <p className="text-sm text-shore-500 mb-4">
-          Kategorien die auf Warteliste gesetzt sind — neue Anmeldungen werden automatisch als <em>Warteliste</em> markiert.
+          Kategorien auf Warteliste — neue Anmeldungen werden automatisch als <em>Warteliste</em> markiert.
         </p>
         <div className="space-y-2">
           {Object.entries(CATS).map(([key, { label, icon }]) => {
@@ -1132,12 +1165,15 @@ function HesseDashboard() {
 
 function HesseList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get('checked_in') === 'true') return 'checked_in';
-    return p.get('status') || '';
-  });
+  const [statusFilter, setStatusFilter] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get('checked_in') === 'true') setStatusFilter('checked_in');
+    else setStatusFilter(p.get('status') || '');
+  }, [location.search]);
   const url = `/api/hesse/admin/registrations?${new URLSearchParams({
     ...(statusFilter === 'checked_in' ? { checked_in: 'true' } : statusFilter ? { status: statusFilter } : {}),
     ...(search && { search }),
@@ -1272,7 +1308,7 @@ function HesseDetail() {
 
   return (
     <div>
-      <button className="btn-secondary mb-4 text-sm" onClick={() => navigate('/admin/hesse/registrations')}>← Zurück</button>
+      <button className="btn-secondary mb-4 text-sm" onClick={() => navigate(-1)}>← Zurück</button>
 
       {msg && (
         <div className={`mb-4 p-3 rounded-xl text-sm font-medium border ${msg.type === 'err' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>

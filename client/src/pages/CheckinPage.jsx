@@ -412,6 +412,7 @@ export default function CheckinPage() {
     setPinError(null);
     setCup('mahrenholz');
     lastCode.current = null;
+    window.history.replaceState({}, '', '/checkin');
   };
 
   useEffect(() => {

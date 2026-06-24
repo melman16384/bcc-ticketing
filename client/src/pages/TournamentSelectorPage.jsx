@@ -42,7 +42,7 @@ export default function TournamentSelectorPage() {
                 Beach-Volleyball für Vereine & Spielgemeinschaften. King of the Court und Beach-Fun Kategorien.
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {['🏐 KotC männlich','🏐 KotC weiblich','🏐 KotC mixed','🌊 Beach-Fun A','🌊 Beach-Fun B'].map((t) => (
+                {['🏐 King of the Court ♂','🏐 King of the Court ♀','🏐 King of the Court Mixed','🌊 Beach-Fun A','🌊 Beach-Fun B'].map((t) => (
                   <span key={t} className="text-xs bg-ocean-50 text-ocean-700 border border-ocean-100 rounded-full px-2.5 py-0.5">{t}</span>
                 ))}
               </div>

@@ -164,7 +164,7 @@ router.delete('/admin/registrations/:id', auth('superadmin'), (req, res) => {
 // ── Admin: CSV-Export ─────────────────────────────────────────────────────────
 router.get('/admin/export/csv', auth('admin'), (req, res) => {
   const rows = db.prepare("SELECT * FROM hesse_registrations ORDER BY created_at DESC").all();
-  const headers = ['ID','Buchungscode','Status','Firma','Kunden-Nr.','Vorname','Nachname','Straße','PLZ','Ort','Telefon','E-Mail','Mannschaften','Teamnamen','Teilnehmer','Gebühr gesamt','Erstellt','Bestätigt','Zahlung'];
+  const headers = ['ID','Buchungscode','Status','Firma','Kunden-Nr.','Vorname','Nachname','Straße','PLZ','Ort','Telefon','E-Mail','Mannschaften','Teamnamen','Teilnehmer','Gebühr gesamt','Erstellt','Bestätigt','Zahlung','Eingecheckt'];
   const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [headers.join(';'), ...rows.map((r) => [
     r.id, r.booking_code, r.status, r.firma, r.kunden_nr,
@@ -173,7 +173,7 @@ router.get('/admin/export/csv', auth('admin'), (req, res) => {
     (r.mannschaftsnamen || '').replace(/\n/g, ' | '),
     r.teilnehmer_anzahl,
     String(r.gebuehr_gesamt || 0).replace('.', ','),
-    r.created_at, r.confirmed_at, r.payment_received_at,
+    r.created_at, r.confirmed_at, r.payment_received_at, r.checked_in_at,
   ].map(escape).join(';'))];
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="hesse-anmeldungen-${new Date().toISOString().slice(0,10)}.csv"`);
