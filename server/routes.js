@@ -302,7 +302,7 @@ router.get('/admin/settings', auth('admin'), (req, res) => {
 });
 
 router.patch('/admin/settings', auth('admin'), (req, res) => {
-  const allowed = ['kotc_maennlich_waitlist','kotc_weiblich_waitlist','kotc_mixed_waitlist','beach_fun_a_waitlist','beach_fun_b_waitlist'];
+  const allowed = ['kotc_maennlich_waitlist','kotc_weiblich_waitlist','kotc_mixed_waitlist','beach_fun_a_waitlist','beach_fun_b_waitlist','registration_open','hesse_registration_open'];
   const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
   for (const key of allowed) {
     if (key in req.body) stmt.run(key, req.body[key] ? '1' : '0');
