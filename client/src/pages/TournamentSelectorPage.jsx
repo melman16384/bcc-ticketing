@@ -31,7 +31,7 @@ export default function TournamentSelectorPage() {
           {/* Mahrenholz Cup */}
           <button
             onClick={() => navigate('/mahrenholz')}
-            className="group text-left rounded-3xl border-2 border-ocean-100 bg-white shadow-sm hover:shadow-lg hover:border-ocean-300 transition-all duration-200 overflow-hidden"
+            className="group text-left flex flex-col rounded-3xl border-2 border-ocean-100 bg-white shadow-sm hover:shadow-lg hover:border-ocean-300 transition-all duration-200 overflow-hidden"
           >
             <div style={{ background: 'linear-gradient(135deg, #aed5e8 0%, #24638a 100%)' }} className="px-6 py-5">
               <p className="text-white text-2xl font-extrabold leading-tight">34. Mahrenholz<br />Beach-Cup</p>
@@ -55,7 +55,7 @@ export default function TournamentSelectorPage() {
           {/* Heße Cup */}
           <button
             onClick={() => navigate('/hesse')}
-            className="group text-left rounded-3xl border-2 border-red-100 bg-white shadow-sm hover:shadow-lg hover:border-red-300 transition-all duration-200 overflow-hidden"
+            className="group text-left flex flex-col rounded-3xl border-2 border-red-100 bg-white shadow-sm hover:shadow-lg hover:border-red-300 transition-all duration-200 overflow-hidden"
           >
             <div style={{ background: 'linear-gradient(135deg, #e8a0a0 0%, #c0392b 100%)' }} className="px-6 py-5">
               <p className="text-white text-2xl font-extrabold leading-tight">Heße Immobilien<br />Firmencup</p>
