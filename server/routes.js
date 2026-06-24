@@ -368,17 +368,24 @@ router.post('/superadmin/smtp/test', auth('superadmin'), async (req, res) => {
 // ── ADMIN: CSV-Export ─────────────────────────────────────────────────────────
 router.get('/admin/export/csv', auth('admin'), (req, res) => {
   const rows = db.prepare('SELECT * FROM registrations ORDER BY created_at DESC').all();
-  if (!rows.length) return res.send('Keine Daten');
-  const headers = Object.keys(rows[0]);
-  const escape = (v) => {
-    if (v == null) return '';
-    const s = String(v).replace(/"/g, '""');
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
-  };
-  const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => escape(r[h])).join(','))].join('\r\n');
+  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const headers = ['ID','Buchungscode','Status','Warteliste','Verein','Vorname','Nachname','Straße','PLZ','Ort','E-Mail','Telefon',
+    'KotC männl.','KotC weibl.','KotC Mixed','Beach-Fun A','Beach-Fun B',
+    'Begleitpers.','Kinder','PKW-Plätze','Frühst. Sa','Frühst. So',
+    'Teilnehmer','Zuschauer','Gebühr gesamt','Erstellt','Bestätigt','Zahlung','Eingecheckt'];
+  const lines = [headers.join(';'), ...rows.map((r) => [
+    r.id, r.booking_code, r.status, r.auf_warteliste ? 'Ja' : 'Nein',
+    r.vereinsname, r.vorname, r.nachname, r.strasse, r.plz, r.ort, r.email, r.telefon,
+    r.kotc_maennlich, r.kotc_weiblich, r.kotc_mixed, r.beach_fun_a, r.beach_fun_b,
+    r.begleitpersonen, r.kinder_jugendliche, r.pkw_stellplaetze,
+    r.fruehstueck_samstag, r.fruehstueck_sonntag,
+    r.teilnehmer_anzahl, r.zuschauer_anzahl,
+    String(r.gebuehr_gesamt || 0).replace('.', ','),
+    r.created_at, r.confirmed_at, r.payment_received_at, r.checked_in_at,
+  ].map(escape).join(';'))];
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="anmeldungen.csv"');
-  res.send('﻿' + csv);
+  res.setHeader('Content-Disposition', `attachment; filename="mahrenholz-anmeldungen-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send('﻿' + lines.join('\r\n'));
 });
 
 // ── SUPERADMIN: Benutzerverwaltung ────────────────────────────────────────────
@@ -434,6 +441,50 @@ router.get('/superadmin/pin', auth('superadmin'), (req, res) => {
 router.patch('/superadmin/pin', auth('superadmin'), (req, res) => {
   const pin = String(req.body.checkin_pin || '').trim();
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('checkin_pin', pin);
+  res.json({ ok: true });
+});
+
+// ── PUBLIC: Buchungsübersicht ─────────────────────────────────────────────────
+router.get('/buchung/:code', (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const m = db.prepare(`SELECT id, booking_code, status, auf_warteliste, confirmed_at, payment_received_at, checked_in_at,
+    vorname, nachname, vereinsname,
+    kotc_maennlich, kotc_weiblich, kotc_mixed, beach_fun_a, beach_fun_b,
+    names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b,
+    gebuehr_gesamt FROM registrations WHERE booking_code = ?`).get(code);
+  if (m) return res.json({ ...m, cup: 'mahrenholz' });
+  const h = db.prepare(`SELECT id, booking_code, status, confirmed_at, payment_received_at, checked_in_at,
+    vorname, nachname, firma, mannschaften, mannschaftsnamen, teilnehmer_anzahl,
+    gebuehr_gesamt FROM hesse_registrations WHERE booking_code = ?`).get(code);
+  if (h) return res.json({ ...h, cup: 'hesse' });
+  res.status(404).json({ error: 'Buchung nicht gefunden' });
+});
+
+router.post('/buchung/:code/cancel', async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  if (!req.body.confirmed) return res.status(400).json({ error: 'Bestätigung fehlt' });
+
+  let reg = db.prepare('SELECT * FROM registrations WHERE booking_code = ?').get(code);
+  let cup = 'mahrenholz';
+  if (!reg) { reg = db.prepare('SELECT * FROM hesse_registrations WHERE booking_code = ?').get(code); cup = 'hesse'; }
+  if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+  if (reg.status === 'cancelled') return res.status(409).json({ error: 'Bereits storniert' });
+  if (reg.status === 'confirmed') return res.status(409).json({ error: 'Bestätigte Anmeldungen können nur durch den Veranstalter storniert werden. Bitte per E-Mail melden.' });
+
+  const table = cup === 'hesse' ? 'hesse_registrations' : 'registrations';
+  db.prepare(`UPDATE ${table} SET status = 'cancelled' WHERE booking_code = ?`).run(code);
+  const updated = db.prepare(`SELECT * FROM ${table} WHERE booking_code = ?`).get(code);
+
+  try {
+    if (cup === 'hesse') {
+      const { sendHesseCancellation } = require('./mailer');
+      await sendHesseCancellation(updated);
+    } else {
+      const { sendCancellationEmail } = require('./mailer');
+      await sendCancellationEmail(updated);
+    }
+  } catch (e) { console.error('[Mailer] Storno-Mail Fehler:', e.message); }
+
   res.json({ ok: true });
 });
 

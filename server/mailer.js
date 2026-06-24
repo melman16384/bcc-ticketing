@@ -100,6 +100,20 @@ function wrap(content) {
 </body></html>`;
 }
 
+const BASE_URL = process.env.BASE_URL || 'https://ticketing.luwilab.work';
+
+function stornoBox(bookingCode) {
+  const url = `${BASE_URL}/buchung/${bookingCode}`;
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
+      <tr><td style="background:#fef9f0;border:1px solid #fde68a;border-radius:8px;padding:14px 16px">
+        <p style="margin:0 0 6px;font-size:13px;color:#92400e;font-weight:bold">Buchungsübersicht & Stornierung</p>
+        <p style="margin:0 0 10px;font-size:13px;color:#a16207">Über folgenden Link können Sie Ihre Buchung einsehen oder stornieren (solange noch nicht bestätigt):</p>
+        <a href="${url}" style="display:inline-block;background:#24638a;color:#fff;text-decoration:none;font-size:13px;font-weight:bold;padding:8px 18px;border-radius:6px">${url}</a>
+      </td></tr>
+    </table>`;
+}
+
 // Section heading
 function sectionHead(text) {
   return `<p style="margin:24px 0 8px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.08em;color:${COLORS.muted};border-bottom:1px solid ${COLORS.border};padding-bottom:6px">${text}</p>`;
@@ -239,6 +253,8 @@ async function sendRegistrationConfirmation(reg) {
 
     ${sectionHead('Gebühren')}
     ${feesBox(reg)}
+
+    ${stornoBox(reg.booking_code)}
 
     <p style="margin:24px 0 0;font-size:14px">Mit sportlichen Grüßen<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Mahrenholz Beach-Cup</span></p>
   `));
@@ -513,6 +529,7 @@ async function sendHesseConfirmation(reg) {
       ['Teilnehmer gesamt', reg.teilnehmer_anzahl],
       ['Startgebühr gesamt', `${String(reg.gebuehr_gesamt).replace('.', ',')} €`],
     ])}
+    ${stornoBox(reg.booking_code)}
     <p style="margin:24px 0 0;font-size:14px">Mit sportlichen Grüßen<br><strong>Rüdiger Sauer</strong><br><span style="color:${COLORS.muted}">Turnierleitung · Heße Immobilien Cup 2026</span></p>
   `);
   const t = buildTransporter();

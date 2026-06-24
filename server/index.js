@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const { seedUsers } = require('./db');
 const routes = require('./routes');
 const hesseRoutes = require('./routes-hesse');
+require('./backup');
 
 seedUsers();
 

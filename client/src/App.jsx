@@ -5,6 +5,7 @@ import HesseRegistrationPage from './pages/HesseRegistrationPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import CheckinPage from './pages/CheckinPage';
+import BuchungPage from './pages/BuchungPage';
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem('bcc_token');
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/admin/*" element={<RequireAuth><AdminPage /></RequireAuth>} />
       <Route path="/checkin" element={<CheckinPage />} />
+      <Route path="/buchung/:code" element={<BuchungPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
