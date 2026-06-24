@@ -129,14 +129,7 @@ db.exec(`
     ('payment_bank', ''),
     ('payment_frist', '4 Wochen vor Turnierbeginn'),
     ('payment_storno_hinweis', 'Bei Abmeldung nach dem 15.06.2026 wird die Startgebühr nicht erstattet.'),
-    ('checkin_pin', ''),
-    ('hesse_registration_open', '1'),
-    ('hesse_payment_empfaenger', 'Beachsportclub Cuxhaven e.V.'),
-    ('hesse_payment_iban', ''),
-    ('hesse_payment_bic', ''),
-    ('hesse_payment_bank', ''),
-    ('hesse_payment_frist', '4 Wochen vor Turnierbeginn'),
-    ('hesse_payment_storno_hinweis', 'Bei Abmeldung nach dem 15.06.2026 wird die Startgebühr nicht erstattet.');
+    ('checkin_pin', '');
 `);
 
 // Migrate older databases that may be missing columns

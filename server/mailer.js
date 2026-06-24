@@ -35,17 +35,6 @@ function getPayment() {
   };
 }
 
-function getHessePayment() {
-  const s = getSettings();
-  return {
-    empfaenger:     s.hesse_payment_empfaenger     || 'Beachsportclub Cuxhaven e.V.',
-    iban:           s.hesse_payment_iban           || '(IBAN nicht hinterlegt)',
-    bic:            s.hesse_payment_bic            || '(BIC nicht hinterlegt)',
-    bank:           s.hesse_payment_bank           || '',
-    frist:          s.hesse_payment_frist          || '4 Wochen vor Turnierbeginn',
-    storno_hinweis: s.hesse_payment_storno_hinweis || '',
-  };
-}
 
 const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',') + ' €';
 
@@ -560,7 +549,7 @@ async function sendHesseAdminNotification(reg) {
 }
 
 async function sendHessePaymentInfo(reg) {
-  const p = getHessePayment();
+  const p = getPayment();
   const subject = `Zahlungsinformationen – Heße Immobilien Cup 2026 [${reg.booking_code}]`;
   const html = hesseWrap(`
     <h2 style="margin:0 0 8px;color:${HESSE_COLOR}">Zahlungsinformationen</h2>

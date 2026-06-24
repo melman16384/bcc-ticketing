@@ -31,10 +31,6 @@ function auth(role) {
 // ── Öffentliche Anmeldung ─────────────────────────────────────────────────────
 router.post('/registrations', async (req, res) => {
   try {
-    const { getSettings } = require('./db');
-    if (getSettings().hesse_registration_open === '0') {
-      return res.status(403).json({ error: 'Die Anmeldung ist derzeit geschlossen.' });
-    }
     const d = req.body;
     if (!d.firma || !d.vorname || !d.nachname || !d.email || !d.strasse || !d.ort || !d.plz) {
       return res.status(400).json({ error: 'Pflichtfelder fehlen' });
@@ -154,34 +150,6 @@ router.post('/admin/registrations/:id/payment', auth('admin'), async (req, res) 
   const updated = db.prepare('SELECT * FROM hesse_registrations WHERE id = ?').get(reg.id);
   const { sendHesseQrCode } = require('./mailer');
   sendHesseQrCode(updated).catch((e) => console.error('[Mailer/Hesse]', e.message));
-  res.json({ ok: true });
-});
-
-// ── Superadmin: Einstellungen ─────────────────────────────────────────────────
-router.get('/superadmin/settings', auth('superadmin'), (req, res) => {
-  const { getSettings } = require('./db');
-  const s = getSettings();
-  res.json({
-    hesse_registration_open:      s.hesse_registration_open      ?? '1',
-    hesse_payment_empfaenger:     s.hesse_payment_empfaenger     || 'Beachsportclub Cuxhaven e.V.',
-    hesse_payment_iban:           s.hesse_payment_iban           || '',
-    hesse_payment_bic:            s.hesse_payment_bic            || '',
-    hesse_payment_bank:           s.hesse_payment_bank           || '',
-    hesse_payment_frist:          s.hesse_payment_frist          || '4 Wochen vor Turnierbeginn',
-    hesse_payment_storno_hinweis: s.hesse_payment_storno_hinweis || '',
-  });
-});
-
-router.patch('/superadmin/settings', auth('superadmin'), (req, res) => {
-  const allowed = [
-    'hesse_registration_open',
-    'hesse_payment_empfaenger', 'hesse_payment_iban', 'hesse_payment_bic',
-    'hesse_payment_bank', 'hesse_payment_frist', 'hesse_payment_storno_hinweis',
-  ];
-  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-  for (const key of allowed) {
-    if (key in req.body) stmt.run(key, String(req.body[key]));
-  }
   res.json({ ok: true });
 });
 
