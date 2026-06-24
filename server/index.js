@@ -13,19 +13,20 @@ seedUsers();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://ticketing.luwilab.work';
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
 // Rate limiting: Login — max 10 Versuche / 15 Minuten pro IP
 app.use('/api/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
   message: { error: 'Zu viele Anmeldeversuche. Bitte in 15 Minuten erneut versuchen.' } }));
 
-// Rate limiting: Check-in PIN — max 20 Versuche / 5 Minuten pro IP
-const checkinLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Zu viele PIN-Versuche. Bitte kurz warten.' } });
-app.use('/api/checkin/:code', checkinLimit);
-app.use('/api/hesse/checkin/:code', checkinLimit);
+// Rate limiting: Check-in (GET + POST) — max 60 Anfragen / 5 Minuten pro IP
+const checkinLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen. Bitte kurz warten.' } });
+app.use('/api/checkin', checkinLimit);
+app.use('/api/hesse/checkin', checkinLimit);
 
 app.use('/api', routes);
 app.use('/api/hesse', hesseRoutes);

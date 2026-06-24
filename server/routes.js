@@ -5,7 +5,11 @@ const jwt = require('jsonwebtoken');
 const { db, getSettings } = require('./db');
 const { sendRegistrationConfirmation, sendAdminNotification, sendPaymentInfo } = require('./mailer');
 
-const JWT_SECRET = () => process.env.JWT_SECRET || 'fallback-secret';
+const JWT_SECRET = () => {
+  const s = process.env.JWT_SECRET;
+  if (!s) throw new Error('JWT_SECRET nicht konfiguriert');
+  return s;
+};
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous I/1/O/0
 function genBookingCode() {
@@ -26,10 +30,13 @@ function auth(requiredRole) {
     }
     try {
       const payload = jwt.verify(header.slice(7), JWT_SECRET());
-      req.user = payload;
       if (requiredRole === 'superadmin' && payload.role !== 'superadmin') {
         return res.status(403).json({ error: 'Nur Superadmin erlaubt' });
       }
+      if (requiredRole === 'admin' && payload.role !== 'admin' && payload.role !== 'superadmin') {
+        return res.status(403).json({ error: 'Keine Berechtigung' });
+      }
+      req.user = payload;
       next();
     } catch {
       res.status(401).json({ error: 'Token ungültig oder abgelaufen' });
@@ -238,10 +245,9 @@ router.post('/admin/registrations/:id/payment', auth('admin'), async (req, res) 
 router.get('/checkin/:code', (req, res) => {
   const reg = db.prepare(`
     SELECT id, booking_code, status, auf_warteliste, payment_received_at, checked_in_at,
-           vorname, nachname, vereinsname, email, telefon,
+           vorname, nachname, vereinsname,
            kotc_maennlich, kotc_weiblich, kotc_mixed, beach_fun_a, beach_fun_b,
-           names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b,
-           gebuehr_gesamt, confirmed_at, created_at
+           names_kotc_maennlich, names_kotc_weiblich, names_kotc_mixed, names_beach_fun_a, names_beach_fun_b
     FROM registrations WHERE booking_code = ?
   `).get(req.params.code.toUpperCase());
   if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });

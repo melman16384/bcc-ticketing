@@ -2,7 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('./db');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'bcc-secret-2026';
+const getJwtSecret = () => {
+  const s = process.env.JWT_SECRET;
+  if (!s) throw new Error('JWT_SECRET nicht konfiguriert');
+  return s;
+};
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -19,7 +23,7 @@ function auth(role) {
   return (req, res, next) => {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     try {
-      const payload = jwt.verify(token, JWT_SECRET);
+      const payload = jwt.verify(token, getJwtSecret());
       if (role === 'superadmin' && payload.role !== 'superadmin') return res.status(403).json({ error: 'Keine Berechtigung' });
       if (role === 'admin' && payload.role !== 'admin' && payload.role !== 'superadmin') return res.status(403).json({ error: 'Keine Berechtigung' });
       req.user = payload;
@@ -188,7 +192,7 @@ router.get('/admin/export/csv', auth('admin'), (req, res) => {
 router.get('/checkin/:code', (req, res) => {
   const reg = db.prepare(`
     SELECT id, booking_code, status, payment_received_at, checked_in_at,
-           firma, vorname, nachname, email, mannschaften, mannschaftsnamen, teilnehmer_anzahl
+           firma, vorname, nachname, mannschaften, mannschaftsnamen, teilnehmer_anzahl
     FROM hesse_registrations WHERE booking_code = ?
   `).get(req.params.code.toUpperCase());
   if (!reg) return res.status(404).json({ error: 'Buchung nicht gefunden' });

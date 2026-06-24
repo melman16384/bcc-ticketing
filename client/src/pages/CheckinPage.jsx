@@ -284,7 +284,6 @@ function ResultSheet({ reg, onCheckinRequest, onReset, success, cup }) {
               <p className="font-bold text-xl text-shore-800">{reg.vorname} {reg.nachname}</p>
               {isHesse && reg.firma && <p className="text-shore-600 text-sm font-semibold">{reg.firma}</p>}
               {!isHesse && reg.vereinsname && <p className="text-shore-500 text-sm">{reg.vereinsname}</p>}
-              <p className="text-shore-400 text-xs mt-0.5">{reg.email}</p>
               <span className={`inline-block mt-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${isHesse ? 'bg-red-100 text-red-700' : 'bg-ocean-50 text-ocean-700'}`}>
                 {isHesse ? '🏢 Heße Cup' : '🌊 Mahrenholz Cup'}
               </span>
