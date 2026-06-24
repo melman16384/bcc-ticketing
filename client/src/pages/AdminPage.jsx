@@ -238,9 +238,9 @@ function Dashboard() {
         <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">🏐 Teams nach Kategorie</p>
         <div className="grid grid-cols-5 gap-3 text-center">
           {[
-            { label: 'KotC ♂', value: stats?.teams?.kotc_m, waitlist: true },
-            { label: 'KotC ♀', value: stats?.teams?.kotc_w },
-            { label: 'KotC ±', value: stats?.teams?.kotc_x },
+            { label: 'King of the Court ♂', value: stats?.teams?.kotc_m, waitlist: true },
+            { label: 'King of the Court ♀', value: stats?.teams?.kotc_w },
+            { label: 'King of the Court Mixed', value: stats?.teams?.kotc_x },
             { label: 'Beach-Fun A', value: stats?.teams?.bfa, waitlist: true },
             { label: 'Beach-Fun B', value: stats?.teams?.bfb, waitlist: true },
           ].map((t) => (
@@ -1118,18 +1118,11 @@ function HesseDashboard() {
 
       <div className="card">
         <p className="text-xs font-bold text-shore-400 uppercase tracking-widest mb-3">🏐 Firmencup Übersicht</p>
-        <div className="grid grid-cols-2 gap-3 text-center max-w-xs">
+        <div className="grid grid-cols-1 gap-3 text-center max-w-xs">
           <div className="bg-shore-50 rounded-xl p-3 border border-shore-100">
             <div className="text-2xl font-bold text-ocean-600">{stats?.mannschaften ?? 0}</div>
             <div className="text-xs text-shore-500 mt-1 leading-tight">Mannschaften</div>
             <div className="text-xs text-shore-400 mt-0.5">4er-Mixed</div>
-          </div>
-          <div className="bg-shore-50 rounded-xl p-3 border border-shore-100">
-            <div className="text-xl font-bold text-ocean-600">
-              {stats?.revenue != null ? (stats.revenue.toFixed(2).replace('.', ',') + ' €') : '0,00 €'}
-            </div>
-            <div className="text-xs text-shore-500 mt-1 leading-tight">Einnahmen</div>
-            <div className="text-xs text-shore-400 mt-0.5">Bestätigte Anm.</div>
           </div>
         </div>
       </div>
