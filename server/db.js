@@ -160,13 +160,17 @@ function getSettings() {
 }
 
 function seedUsers() {
-  const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@bcc-ticketing.de';
-  const superPw   = process.env.SEED_SUPERADMIN_PASSWORD || 'changeme';
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@bcc-ticketing.de';
-  const adminPw   = process.env.SEED_ADMIN_PASSWORD || 'changeme';
-
   const existing = db.prepare('SELECT COUNT(*) as n FROM users').get().n;
   if (existing > 0) return;
+
+  if (!process.env.SEED_SUPERADMIN_PASSWORD || !process.env.SEED_ADMIN_PASSWORD) {
+    throw new Error('SEED_SUPERADMIN_PASSWORD and SEED_ADMIN_PASSWORD environment variables are required to create the initial users');
+  }
+
+  const superEmail = process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@bcc-ticketing.de';
+  const superPw   = process.env.SEED_SUPERADMIN_PASSWORD;
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@bcc-ticketing.de';
+  const adminPw   = process.env.SEED_ADMIN_PASSWORD;
 
   const insert = db.prepare('INSERT INTO users (email, password_hash, role, name) VALUES (?, ?, ?, ?)');
   insert.run(superEmail, bcrypt.hashSync(superPw, 10), 'superadmin', 'Super Admin');

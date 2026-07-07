@@ -33,7 +33,8 @@ Vollständiges Anmelde- und Check-in-System für den **34. Mahrenholz Beach-Cup 
 | E-Mail     | Nodemailer (SMTP konfigurierbar)             |
 | QR-Code    | `qrcode` (Server) + `jsqr` (Client-Scanner) |
 | Backups    | `node-cron` + `fs.copyFileSync`             |
-| Deployment | PM2 + Nginx Reverse Proxy + Cloudflare       |
+| Sicherheit | `helmet` (HTTP-Header) + `express-rate-limit` + Nginx Rate Limiting |
+| Deployment | PM2 (non-root) + Nginx Reverse Proxy + Cloudflare |
 
 ## Projektstruktur
 
@@ -116,9 +117,9 @@ cp .env.example .env
 | `JWT_SECRET`               | Geheimer Schlüssel für JWT-Token       | –  (Pflicht)                   |
 | `ALLOWED_ORIGIN`           | Erlaubte CORS-Herkunft                 | `https://ticketing.cux-beach.de` |
 | `SEED_SUPERADMIN_EMAIL`    | E-Mail des Superadmins                 | `superadmin@bcc-ticketing.de`  |
-| `SEED_SUPERADMIN_PASSWORD` | Passwort des Superadmins               | `changeme`                     |
+| `SEED_SUPERADMIN_PASSWORD` | Passwort des Superadmins               | – (Pflicht, kein Default)      |
 | `SEED_ADMIN_EMAIL`         | E-Mail des Admins                      | `admin@bcc-ticketing.de`       |
-| `SEED_ADMIN_PASSWORD`      | Passwort des Admins                    | `changeme`                     |
+| `SEED_ADMIN_PASSWORD`      | Passwort des Admins                    | – (Pflicht, kein Default)      |
 | `SMTP_HOST`                | SMTP-Server                            | –                              |
 | `SMTP_PORT`                | SMTP-Port                              | `587`                          |
 | `SMTP_USER`                | SMTP-Benutzername                      | –                              |
@@ -127,6 +128,8 @@ cp .env.example .env
 | `ADMIN_EMAIL`              | Empfänger der Admin-Benachrichtigungen | –                              |
 
 > Die SMTP- und Zahlungseinstellungen können auch direkt im Admin-Panel unter **Einstellungen** gepflegt und in der Datenbank gespeichert werden.
+
+> **Wichtig:** `SEED_SUPERADMIN_PASSWORD` und `SEED_ADMIN_PASSWORD` haben seit der letzten Sicherheitshärtung **keinen** Default-Wert mehr. Sind sie bei einer frischen (leeren) Datenbank nicht gesetzt, bricht der Serverstart mit einer Fehlermeldung ab, statt stillschweigend ein unsicheres Standardpasswort zu verwenden.
 
 ### Starten
 
@@ -230,7 +233,7 @@ Erreichbar unter `/admin`. Bereiche:
 ```
 Internet → Cloudflare (Proxy, Full SSL)
          → Nginx (Port 443, self-signed cert)
-         → Node.js / PM2 (Port 3000)
+         → Node.js / PM2 (nur 127.0.0.1:3000, Prozess läuft als svc-bccticket)
 ```
 
 PM2-Prozessname: `bcc-ticketing`
@@ -240,6 +243,38 @@ PM2-Prozessname: `bcc-ticketing`
 cd /opt/bcc-ticketing/client && npm run build
 pm2 restart bcc-ticketing --update-env
 ```
+
+## Sicherheit
+
+Der Produktivserver wurde im Rahmen einer Sicherheitshärtung angepasst. Zusammenfassung des aktuellen Stands:
+
+### Infrastruktur / Host
+
+- **Firewall (UFW):** aktiv, Default-Deny für eingehenden Traffic. Nur Port 22 (SSH), 80 und 443 sind offen. Port 3000 (Node) ist von außen nicht erreichbar.
+- **Backend-Bindung:** Der Express-Server bindet ausschließlich an `127.0.0.1` (`app.listen(PORT, '127.0.0.1', ...)` in `server/index.js`) statt an `0.0.0.0` – zusätzliche Absicherung neben der Firewall.
+- **Eigener Systembenutzer:** Der PM2-Prozess läuft nicht mehr als root, sondern als dedizierter, unprivilegierter Benutzer `svc-bccticket` (kein Login-Shell, kein Home-Verzeichnis). Konfiguriert über `uid`/`gid` in `/opt/ecosystem.config.js`. Das gesamte Verzeichnis `/opt/bcc-ticketing` gehört `svc-bccticket`.
+- **Dateiberechtigungen:** `.env` ist `600`. Die SQLite-Datenbank und Backup-Dateien (`data/*.db`, `data/backups/*.db`) sind `640` und gehören `svc-bccticket`.
+- **fail2ban:** systemweit aktiv mit einem `sshd`-Jail (Bantime 1h, Findtime 10min, maxretry 5) gegen Brute-Force-Angriffe auf SSH.
+- **SSH:** `X11Forwarding` ist serverweit deaktiviert.
+
+### Nginx
+
+- `ssl_protocols` global auf `TLSv1.2` und `TLSv1.3` beschränkt (TLSv1/1.1 entfernt).
+- `server_tokens off` global gesetzt – Nginx gibt seine Version nicht mehr preis.
+- Rate Limiting: Zone `login_limit` (5 Req/min pro IP) auf `/api/login`, Zone `api_limit` (60 Req/min pro IP) auf die übrigen `/api/`-Routen.
+- `location ~ /\.git { deny all; }` als zusätzliche Absicherung.
+- Content-Security-Policy-Header ist gesetzt (fehlte zuvor auf dieser Site).
+
+### Anwendungsebene
+
+- **helmet:** `server/index.js` nutzt `helmet({ contentSecurityPolicy: false })` für Standard-Security-Header (u. a. `X-Content-Type-Options`, `X-Frame-Options`). Die CSP selbst wird bewusst auf Nginx-Ebene gesetzt, um doppelte/widersprüchliche Policies zu vermeiden.
+- **Rate Limiting erweitert:** Zusätzlich zu den bestehenden spezifischen Limits (`/api/login`: 10 Req/15min, `/api/checkin` + `/api/hesse/checkin`: 60 Req/5min) gibt es nun ein globales Basis-Limit von 300 Req/15min pro IP auf `/api`. Die spezifischen Limits gelten weiterhin zusätzlich.
+- **JWT_SECRET rotiert:** Der Wert in `.env` wurde durch einen neuen, zufällig generierten 128-stelligen Hex-String (`openssl rand -hex 64`) ersetzt. Alle zuvor ausgestellten Tokens sind damit ungültig geworden; alle Admin-Nutzer mussten sich neu anmelden. Eine Rotation in regelmäßigen Abständen wird empfohlen.
+- **Kein unsicherer Passwort-Fallback mehr:** `seedUsers()` in `server/db.js` verwendet bei fehlenden `SEED_SUPERADMIN_PASSWORD`/`SEED_ADMIN_PASSWORD` nicht mehr das frühere Default-Passwort `changeme`. Stattdessen bricht der Serverstart bei einer frischen/leeren Datenbank mit einer Fehlermeldung ab, wenn diese Variablen nicht gesetzt sind.
+
+### Offener Punkt
+
+- **`SMTP_PASS` ist in der Produktiv-`.env` aktuell noch ein Platzhalter (`changeme`)** und muss vom Betreiber durch ein echtes SMTP-Passwort ersetzt werden. Da es sich um ein externes Zugangsdatum handelt, konnte es bei der Härtung nicht automatisch generiert werden.
 
 ## Lizenz
 

@@ -2,6 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { seedUsers } = require('./db');
@@ -14,10 +15,16 @@ seedUsers();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(helmet({ contentSecurityPolicy: false }));
+
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://ticketing.cux-beach.de';
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+
+// Rate limiting: alle /api-Routen — max 300 Anfragen / 15 Minuten pro IP
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen. Bitte kurz warten.' } }));
 
 // Rate limiting: Login — max 10 Versuche / 15 Minuten pro IP
 app.use('/api/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
@@ -36,7 +43,7 @@ const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
 app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`BCC-Ticketing läuft auf http://localhost:${PORT}`);
   console.log(`Admin-Panel: http://localhost:${PORT}/login`);
 });

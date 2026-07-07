@@ -163,6 +163,7 @@ PORT=3000
 
 # JWT-Secret — PFLICHT. Mindestens 32 zufällige Zeichen.
 # Generieren: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+# oder: openssl rand -hex 64
 JWT_SECRET=hier-einen-sehr-langen-zufaelligen-string-eintragen
 
 # Erlaubte CORS-Herkunft — muss exakt der Frontend-Domain entsprechen (kein Trailing-Slash)
@@ -170,6 +171,9 @@ ALLOWED_ORIGIN=https://meine-domain.de
 
 # Seed-Benutzer — werden NUR beim ersten Start angelegt (wenn noch kein Benutzer existiert)
 # Nach dem ersten Start können diese Werte geändert werden – sie haben dann keinen Effekt mehr
+# PFLICHT bei einer frischen/leeren Datenbank: Fehlen diese Werte, bricht der Serverstart mit
+# einer Fehlermeldung ab. Es gibt seit der letzten Sicherheitshärtung keinen Default-Fallback
+# (z. B. "changeme") mehr für diese Passwörter.
 SEED_SUPERADMIN_EMAIL=superadmin@meine-domain.de
 SEED_SUPERADMIN_PASSWORD=sicheres-passwort-1
 SEED_ADMIN_EMAIL=admin@meine-domain.de
@@ -180,7 +184,7 @@ SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_SECURE=false           # true = Port 465 (SSL), false = Port 587 (STARTTLS)
 SMTP_USER=noreply@meine-domain.de
-SMTP_PASS=smtp-passwort
+SMTP_PASS=smtp-passwort     # In Produktion: echtes SMTP-Passwort eintragen, keinen Platzhalter stehen lassen!
 SMTP_FROM=BCC Ticketing <noreply@meine-domain.de>
 
 # Empfänger der Admin-Benachrichtigungen (neue Anmeldungen)
@@ -191,11 +195,15 @@ ADMIN_EMAIL=veranstaltung@meine-domain.de
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+# alternativ:
+openssl rand -hex 64
 ```
 
-Den ausgegebenen String als `JWT_SECRET` in die `.env` eintragen.
+Den ausgegebenen String als `JWT_SECRET` in die `.env` eintragen. Es empfiehlt sich, das Secret als Routinemaßnahme in regelmäßigen Abständen zu rotieren – dadurch werden alle zuvor ausgestellten JWTs ungültig und alle Admin-Nutzer müssen sich neu anmelden.
 
 > **Wichtig:** Die `.env`-Datei niemals in Git einchecken. Sie ist über `.gitignore` bereits ausgeschlossen.
+
+> **Wichtig – SMTP_PASS:** Dieser Wert muss in Produktion ein echtes, gültiges SMTP-Passwort sein. Ein Platzhalter wie `changeme` darf nicht im Produktivbetrieb stehen bleiben, da sonst kein E-Mail-Versand funktioniert.
 
 ---
 
@@ -229,6 +237,8 @@ Beim ersten Start:
 - Werden alle Tabellen und Standardeinstellungen angelegt
 - Werden die Seed-Benutzer aus der `.env` angelegt (nur wenn noch keine Benutzer existieren)
 
+> **Wichtig:** Sind bei einer frischen/leeren Datenbank `SEED_SUPERADMIN_PASSWORD` oder `SEED_ADMIN_PASSWORD` nicht in der `.env` gesetzt, bricht `seedUsers()` (`server/db.js`) den Serverstart mit einer Fehlermeldung ab. Es gibt keinen stillschweigenden Rückfall mehr auf ein Standardpasswort wie `changeme` – die Variablen müssen vor dem ersten Start explizit gesetzt werden.
+
 **Ausgabe sollte in etwa so aussehen:**
 
 ```
@@ -246,6 +256,24 @@ Mit `Ctrl+C` beenden und mit PM2 fortfahren.
 
 PM2 sorgt dafür, dass der Server nach einem Absturz oder Neustart automatisch wieder startet.
 
+> **Produktivbetrieb – non-root:** Auf dem gehärteten Produktivserver läuft der bcc-ticketing-Prozess **nicht als root**. Dafür wurde ein dedizierter, unprivilegierter Systembenutzer angelegt:
+> ```bash
+> sudo useradd --system --no-create-home --shell /usr/sbin/nologin svc-bccticket
+> sudo chown -R svc-bccticket:svc-bccticket /opt/bcc-ticketing
+> ```
+> PM2 selbst läuft weiterhin als root (bzw. unter dem PM2-Systembenutzer), gibt die Rechte für diesen einen Prozess aber über die Optionen `uid`/`gid` in `/opt/ecosystem.config.js` an `svc-bccticket` ab:
+> ```js
+> // Auszug aus /opt/ecosystem.config.js
+> {
+>   name: 'bcc-ticketing',
+>   script: '/opt/bcc-ticketing/server/index.js',
+>   uid: 'svc-bccticket',
+>   gid: 'svc-bccticket',
+>   // ...weitere Optionen
+> }
+> ```
+> Zusätzlich bindet der Express-Server ausschließlich an `127.0.0.1` (`app.listen(PORT, '127.0.0.1', ...)` in `server/index.js`) statt an `0.0.0.0` – der Prozess ist also selbst ohne Firewall nicht direkt aus dem Internet erreichbar, sondern nur über den Nginx-Reverse-Proxy (siehe Abschnitt 9).
+
 ### PM2 installieren
 
 ```bash
@@ -257,6 +285,12 @@ sudo npm install -g pm2
 ```bash
 cd /opt/bcc-ticketing
 pm2 start server/index.js --name bcc-ticketing
+```
+
+Im Produktivbetrieb erfolgt der Start stattdessen über die zentrale `/opt/ecosystem.config.js` (siehe Hinweis oben), damit `uid`/`gid` gesetzt werden:
+
+```bash
+pm2 start /opt/ecosystem.config.js --only bcc-ticketing
 ```
 
 ### Autostart beim Systemstart einrichten
@@ -491,17 +525,24 @@ Die Backup-Datei liegt danach in `data/backups/`.
 
 ## Verzeichnisrechte (Produktion)
 
-Falls der Server unter einem eigenen User läuft:
+Auf dem gehärteten Produktivserver läuft der Prozess unter dem dedizierten User `svc-bccticket` (siehe Abschnitt 8), dem auch das gesamte Verzeichnis gehört:
 
 ```bash
-sudo chown -R www-data:www-data /opt/bcc-ticketing/data
-sudo chmod 750 /opt/bcc-ticketing/data
+sudo chown -R svc-bccticket:svc-bccticket /opt/bcc-ticketing
 ```
 
-Oder den PM2-Prozess unter dem eigenen User ausführen (empfohlen):
+Empfohlene Dateiberechtigungen:
 
 ```bash
-pm2 start /opt/bcc-ticketing/server/index.js --name bcc-ticketing
+chmod 600 /opt/bcc-ticketing/.env
+chmod 640 /opt/bcc-ticketing/data/*.db
+chmod 640 /opt/bcc-ticketing/data/backups/*.db
+```
+
+Den PM2-Prozess unter dem eigenen User ausführen (empfohlen, siehe Abschnitt 8 für die Konfiguration über `uid`/`gid` in `/opt/ecosystem.config.js`):
+
+```bash
+pm2 start /opt/ecosystem.config.js --only bcc-ticketing
 ```
 
 ---
